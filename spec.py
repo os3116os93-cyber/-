@@ -21,55 +21,60 @@ def get_image_base64(file_path):
     except:
         return ""
 
-# --- 깃허브에 올린 로고 파일명 (실제 파일명과 똑같이 수정하세요) ---
+# --- 깃허브에 업로드된 로고 파일명 ---
 LOGO_FILENAME = "한진철관CI 누끼.png" 
-# ---------------------------------------------------------
+# ----------------------------------
 
 logo_base64 = get_image_base64(LOGO_FILENAME)
 
-# 3. CSS 스타일 (주황색 타이틀 및 레이아웃 조정)
+# 3. CSS 스타일 정의 (주황색 테마 및 모바일 최적화)
 st.markdown(f"""
     <style>
-    /* 상단 헤더 영역 레이아웃 */
+    /* 상단 로고 & 팀명 레이아웃 */
     .header-container {{
         display: flex;
         justify-content: space-between;
         align-items: center;
-        padding: 10px 0;
-        border-bottom: 1px solid rgba(250, 250, 250, 0.1);
-        margin-bottom: 20px;
+        padding: 5px 0;
+        margin-bottom: 15px;
     }}
     
     .brand-logo {{
-        height: 35px;
+        height: 38px; /* 로고 크기 살짝 조정 */
         width: auto;
     }}
     
-    /* 품질기술팀 문구: 기존보다 1포인트 키움 (14px) */
     .team-name {{
         color: rgba(250, 250, 250, 0.8) !important;
-        font-size: 14px;
+        font-size: 14px; /* 1포인트 크게 조정됨 */
         font-weight: 600;
     }}
 
-    /* 메인 타이틀: 주황색 고정 */
+    /* 메인 타이틀: 주황색 */
     .main-title {{
         color: #FF8C00 !important;
-        font-size: 1.8rem;
+        font-size: 1.7rem;
         font-weight: 800;
+        margin-top: 10px;
         margin-bottom: 5px;
     }}
     
-    /* 업체명 타이틀: 주황색 고정 */
+    /* 업체명: 코랄 주황 */
     .customer-title {{
         color: #FF7F50 !important;
         font-weight: bold;
         font-size: 1.4rem;
-        margin-top: 20px;
+        margin-top: 25px;
         margin-bottom: 15px;
     }}
 
-    /* 번역 방지 */
+    /* 사이드바 글자 크기 */
+    .stSidebar [data-testid="stWidgetLabel"] p {{
+        font-size: 15px !important;
+        font-weight: bold;
+        color: #FFFFFF !important;
+    }}
+
     .notranslate {{ translate: no !important; }}
     </style>
     """, unsafe_allow_html=True)
@@ -77,6 +82,7 @@ st.markdown(f"""
 # 4. 데이터 로드 함수
 @st.cache_data
 def load_data():
+    # 파일 후보군 (파일명이 다를 경우를 대비)
     file_candidates = ['고객 사양서.xlsx', '고객사양서.xlsx', 'test.xlsx', '고객 사양서.csv']
     target_file = None
     for f in file_candidates:
@@ -96,6 +102,7 @@ def load_data():
         else:
             df = pd.read_excel(target_file, engine='openpyxl')
         
+        # 컬럼명 공백 제거
         df.columns = [c.strip() if isinstance(c, str) else c for c in df.columns]
         return df.fillna("-")
     except Exception as e:
@@ -104,7 +111,7 @@ def load_data():
 
 # 5. 메인 실행 로직
 def main():
-    # --- 최상단 로고 및 품질기술팀 배치 ---
+    # --- [레이아웃 1] 최상단 로고 및 품질기술팀 ---
     logo_html = f'<img src="data:image/png;base64,{logo_base64}" class="brand-logo">' if logo_base64 else '<div></div>'
     st.markdown(f"""
         <div class="header-container">
@@ -113,14 +120,15 @@ def main():
         </div>
         """, unsafe_allow_html=True)
 
-    # --- 메인 타이틀 (주황색) ---
+    # --- [레이아웃 2] 메인 타이틀 ---
     st.markdown('<div class="main-title">📋 고객사양서 관리</div>', unsafe_allow_html=True)
-    st.markdown("---")
+    st.markdown("<hr style='margin: 10px 0; border: 0.5px solid rgba(250,250,250,0.1);'>", unsafe_allow_html=True)
 
     df = load_data()
 
     if df is not None:
         st.sidebar.header("🏢 고객사 목록")
+        # 첫 번째 열을 업체명으로 사용
         customer_list = df.iloc[:, 0].astype(str).tolist()
         
         selected_customer = st.sidebar.radio(
@@ -130,18 +138,21 @@ def main():
         )
 
         if selected_customer:
+            # 선택된 업체 데이터 추출
             row_data = df[df.iloc[:, 0].astype(str) == selected_customer].iloc[0]
             
             # --- 업체명 표시 (주황색) ---
             st.markdown(f'<div class="customer-title">■ {selected_customer}</div>', unsafe_allow_html=True)
             
+            # 표 생성 루프
             cols = row_data.index[1:]
             for col_name in cols:
                 val = str(row_data[col_name])
-                is_special = any(keyword in str(col_name) for keyword in ["특이사항", "주의", "마킹", "포장"])
+                # 특정 키워드 포함 시 글자색 강조 (빨간색)
+                is_special = any(keyword in str(col_name) for keyword in ["특이사항", "주의", "마킹", "포장", "라벨"])
                 
-                bg_color = "#f9f9f9" 
-                text_color = "#212529" 
+                bg_color = "#f9f9f9" # 항목 배경
+                text_color = "#212529" # 내용 텍스트
                 item_label_color = "#E63946" if is_special else "#495057"
 
                 st.markdown(
@@ -165,8 +176,7 @@ def main():
         else:
             st.info("왼쪽 사이드바에서 업체를 선택해 주세요.")
     else:
-        # 엑셀 파일이 없을 때 메시지
-        st.error("데이터 파일(엑셀)을 찾을 수 없습니다. 파일명이 '고객 사양서.xlsx'인지 확인해 주세요.")
+        st.error("데이터 파일(엑셀)을 찾을 수 없습니다. 깃허브에 파일이 있는지 확인해 주세요.")
 
 if __name__ == "__main__":
     main()
