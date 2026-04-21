@@ -21,56 +21,59 @@ def get_image_base64(file_path):
     except:
         return ""
 
-# --- 영어로 변경하신 파일명과 일치시켰습니다 ---
+# --- 영어 파일명 고정 ---
 LOGO_FILENAME = "hanjin_logo.png" 
-# --------------------------------------------
+# ----------------------
 
 logo_base64 = get_image_base64(LOGO_FILENAME)
 
-# 3. UI 최적화 CSS (로고 확대 및 팀명 위치 조정)
+# 3. UI 정밀 조정 CSS
 st.markdown(f"""
     <style>
-    /* 상단 헤더 영역 */
-    .header-container {{
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
-        padding: 10px 0;
-        margin-bottom: 5px;
+    /* 상단 전체 레이아웃 */
+    .header-wrapper {{
+        position: relative;
+        width: 100%;
+        padding-top: 10px;
     }}
     
-    /* 로고 크기 확대 */
+    /* 로고 크기 및 위치 (좌상단) */
     .brand-logo {{
-        height: 55px; /* 기존보다 약 40% 확대 */
+        height: 65px; /* 크기 더 확대 */
         width: auto;
+        display: block;
     }}
     
-    /* 품질기술팀 문구 위치 (오른쪽 끝 작은 박스 영역) */
-    .team-name {{
-        color: #CCCCCC !important;
+    /* 품질기술팀 위치 (사용자가 지정한 오른쪽 하단 박스 위치) */
+    .team-name-fixed {{
+        position: absolute;
+        right: 0;
+        bottom: 5px; /* 로고 하단 라인 즈음으로 배치 */
+        color: rgba(255, 255, 255, 0.6) !important;
         font-size: 14px;
         font-weight: 600;
-        margin-top: 15px; /* 로고와 높이 밸런스 조정 */
+        letter-spacing: -0.5px;
     }}
 
     /* 메인 타이틀 주황색 */
     .main-title {{
         color: #FF8C00 !important;
         font-weight: 800;
-        font-size: 1.8rem;
-        margin-top: 5px;
+        font-size: 1.85rem;
+        margin-top: 15px;
+        margin-bottom: 5px;
     }}
 
     /* 업체명 주황색 */
     .customer-title {{
         color: #FF7F50 !important;
         font-weight: bold;
-        font-size: 1.4rem;
-        margin-top: 25px;
+        font-size: 1.45rem;
+        margin-top: 30px;
         margin-bottom: 15px;
     }}
 
-    /* 사이드바 글자 크기 */
+    /* 사이드바 글자 강조 */
     .stSidebar [data-testid="stWidgetLabel"] p {{
         font-size: 15px !important;
         font-weight: bold;
@@ -80,7 +83,7 @@ st.markdown(f"""
     </style>
     """, unsafe_allow_html=True)
 
-# 4. 데이터 로드 함수 (중복 제거 포함)
+# 4. 데이터 로드 함수 (중복 처리)
 @st.cache_data
 def load_data():
     file_candidates = ['고객 사양서.xlsx', '고객사양서.xlsx', 'spec.xlsx']
@@ -95,7 +98,6 @@ def load_data():
     
     try:
         df = pd.read_excel(target_file, engine='openpyxl')
-        # 데이터 정제 (공백 제거)
         df.columns = [c.strip() if isinstance(c, str) else c for c in df.columns]
         df.iloc[:, 0] = df.iloc[:, 0].astype(str).str.strip()
         return df.fillna("-")
@@ -103,26 +105,26 @@ def load_data():
         st.error(f"데이터 로드 실패: {e}")
         return None
 
-# 5. 메인 실행 로직
+# 5. 메인 로직
 def main():
-    # --- 상단 로고(좌) 및 품질기술팀(우) 배치 ---
+    # --- 상단 헤더 영역 구성 ---
     logo_html = f'<img src="data:image/png;base64,{logo_base64}" class="brand-logo">' if logo_base64 else '<div></div>'
     st.markdown(f"""
-        <div class="header-container">
+        <div class="header-wrapper">
             {logo_html}
-            <div class="team-name">품질기술팀</div>
+            <div class="team-name-fixed">품질기술팀</div>
         </div>
         """, unsafe_allow_html=True)
 
-    # 메인 제목
+    # 메인 제목 (주황색)
     st.markdown('<div class="main-title">📋 고객사양서 관리</div>', unsafe_allow_html=True)
-    st.markdown("---")
+    st.markdown("<hr style='margin: 10px 0; border: 0.5px solid rgba(250,250,250,0.1);'>", unsafe_allow_html=True)
 
     df = load_data()
 
     if df is not None:
         st.sidebar.header("🏢 고객사 목록")
-        # 중복 제거 및 가나다순 정렬
+        # 중복 제거 및 정렬
         customer_list = sorted(list(set(df.iloc[:, 0].tolist())))
         
         selected_customer = st.sidebar.radio(
@@ -155,7 +157,7 @@ def main():
                             {col_name}
                         </div>
                         <div style="flex: 1; padding: 10px; color: #212529; font-weight: 500; 
-                                    background-color: white; word-break: break-all; font-size: 13px; line-height: 1.4;">
+                                    background-color: white; word-break: break-all; font-size: 13.5px; line-height: 1.4;">
                             {val}
                         </div>
                     </div>
