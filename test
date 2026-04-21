@@ -1,0 +1,110 @@
+import streamlit as st
+import pandas as pd
+import os
+
+# 1. 페이지 설정
+st.set_page_config(
+    page_title="고객사양서 - 품질기술팀",
+    page_icon="📋",
+    layout="wide"
+)
+
+# 2. 데이터 로드 함수
+@st.cache_data
+def load_data():
+    # 깃허브 호환을 위해 영문 파일명(test)을 우선 순위로 설정
+    file_candidates = ['test.xlsx', 'test.csv', '고객 사양서.xlsx', '고객 사양서.csv']
+    target_file = next((f for f in file_candidates if os.path.exists(f)), None)
+    
+    # 로컬에 파일이 없는 경우를 대비해 Streamlit 업로더 제공 (선택 사항)
+    if not target_file:
+        return None
+    
+    try:
+        if target_file.endswith('.csv'):
+            try:
+                df = pd.read_csv(target_file, encoding='utf-8-sig')
+            except:
+                df = pd.read_csv(target_file, encoding='cp949')
+        else:
+            df = pd.read_excel(target_file)
+        
+        # 첫 번째 컬럼(고객사명)의 공백 제거 및 결측치 처리
+        df.columns = [c.strip() if isinstance(c, str) else c for c in df.columns]
+        return df.fillna("-")
+    except Exception as e:
+        st.error(f"파일 로드 중 오류 발생: {e}")
+        return None
+
+# 3. 메인 실행 로직
+def main():
+    st.title("📋 고객사양서 관리 시스템")
+    st.markdown("---")
+
+    df = load_data()
+
+    # 만약 자동으로 파일을 찾지 못했다면 업로드 창 표시
+    if df is None:
+        st.warning("데이터 파일(test.xlsx 또는 test.csv)을 찾을 수 없습니다.")
+        uploaded_file = st.file_uploader("파일을 직접 업로드해주세요.", type=['xlsx', 'csv'])
+        if uploaded_file:
+            if uploaded_file.name.endswith('.csv'):
+                df = pd.read_csv(uploaded_file)
+            else:
+                df = pd.read_excel(uploaded_file)
+            df = df.fillna("-")
+
+    if df is not None:
+        # 좌측 사이드바: 고객사 목록
+        st.sidebar.header("🏢 고객사 목록")
+        customer_list = df.iloc[:, 0].tolist()
+        
+        selected_customer = st.sidebar.radio(
+            "조회할 업체를 선택하세요:",
+            customer_list,
+            index=None,
+            help="목록에서 업체를 클릭하면 상세 사양이 표시됩니다."
+        )
+
+        # 우측 메인 화면: 상세 사양 표시
+        if selected_customer:
+            row_data = df[df.iloc[:, 0] == selected_customer].iloc[0]
+            
+            st.subheader(f"■ {selected_customer} 상세 사양")
+            
+            cols = row_data.index[1:]
+            
+            for col_name in cols:
+                val = str(row_data[col_name])
+                
+                # 특이사항/주의사항 강조 체크
+                is_special = any(keyword in str(col_name) for keyword in ["특이사항", "주의", "마킹"])
+                
+                # HTML/CSS 스타일링
+                bg_color = "#F2F2F2"
+                text_color = "red" if is_special else "black"
+                font_weight = "bold" if is_special else "normal"
+
+                st.markdown(
+                    f"""
+                    <div style="display: flex; border: 1px solid #CCCCCC; margin-bottom: -1px;">
+                        <div style="background-color: {bg_color}; width: 200px; padding: 10px; font-weight: bold; color: #333333; border-right: 1px solid #CCCCCC;">
+                            {col_name}
+                        </div>
+                        <div style="flex: 1; padding: 10px; color: {text_color}; font-weight: {font_weight}; background-color: white;">
+                            {val}
+                        </div>
+                    </div>
+                    """, unsafe_allow_html=True
+                )
+        else:
+            st.info("왼쪽 목록에서 사양을 조회할 고객사를 선택하세요.")
+            
+    else:
+        st.info("데이터 파일을 준비해 주세요.")
+
+if __name__ == "__main__":
+    main()
+
+
+
