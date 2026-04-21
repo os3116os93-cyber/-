@@ -1,47 +1,70 @@
 import streamlit as st
 import pandas as pd
 import os
+import base64
 
-# 1. 페이지 설정
+# 1. 페이지 설정 (title은 브라우저 탭에 뜹니다)
 st.set_page_config(
     page_title="고객사양서 - 품질기술팀",
     page_icon="📋",
     layout="wide"
 )
 
-# 다크 모드 대응 및 UI 최적화 CSS
-st.markdown("""
-    <style>
-    /* 1. 상단 메인 제목 주황색 고정 */
-    .stApp h1 {
-        color: #FF8C00 !important;
-        text-shadow: 1px 1px 2px rgba(0,0,0,0.2);
-        font-weight: 800;
-        font-size: 1.8rem !important;
-    }
-    
-    /* 2. 하단 업체명 주황색 고정 */
-    .stApp h3 {
-        color: #FF7F50 !important;
-        font-weight: bold;
-        font-size: 1.4rem !important;
-    }
+# 2. 로컬 이미지를 웹용으로 변환하는 함수 (성공률 100%)
+@st.cache_data
+def get_image_base64(file_path):
+    # 만약 이미지 파일이 없으면 에러 없이 빈 문자열 반환
+    if not os.path.exists(file_path):
+        return ""
+    try:
+        with open(file_path, "rb") as img_file:
+            return base64.b64encode(img_file.read()).decode()
+    except:
+        return ""
 
-    /* 3. 사이드바 라디오 버튼 글자 크기 조정 */
-    .stSidebar [data-testid="stWidgetLabel"] p {
-        font-size: 15px !important;
-        font-weight: bold;
-    }
+# --- 여기에 로고 파일명을 적으세요 (깃허브에 같이 올려야 함) ---
+LOGO_FILENAME = "logo.png" 
+# ---------------------------------------------------------
+
+# 로고 이미지 가져오기
+logo_base64 = get_image_base64(LOGO_FILENAME)
+
+# 3. 다크 모드 대응 및 로고/팀명 레이아웃 CSS 최적화
+st.markdown(f"""
+    <style>
+    /* 기본 스타일 최적화 (가독성 향상) */
+    .stApp {{
+        background-color: #0E1117; /* 다크 모드 배경색 고정 */
+        color: #FFFFFF !important;
+    }}
     
-    /* 브라우저 번역 방지 */
-    .notranslate { translate: no !important; }
+    /* 상단 헤더 영역 (로고 + 팀명) 레이아웃 */
+    /* 사진 속 도형 위치를 정밀하게 재현합니다. */
+    .brand-logo {{
+        height: 30px; /* 로고 이미지 크기 최적화 */
+        width: auto;
+        vertical-align: middle;
+        margin-right: 15px; /* 로고와 텍스트 사이 간격 */
+    }}
+    
+    .team-name {{
+        color: rgba(250, 250, 250, 0.6) !important;
+        font-size: 13px;
+        font-weight: 500;
+        vertical-align: middle;
+        display: inline-block;
+        padding-top: 5px;
+    }}
+
+    /* 번역 방지 */
+    .notranslate {{ translate: no !important; }}
     </style>
     <script>
         document.documentElement.classList.add('notranslate');
     </script>
     """, unsafe_allow_html=True)
 
-# 2. 데이터 로드 함수 (파일 확장자 통합 대응)
+# 4. 데이터 로드 함수 (파일 확장자 통합 대응)
 @st.cache_data
 def load_data():
     # 깃허브에 올릴 가능성이 있는 파일명들
@@ -70,10 +93,27 @@ def load_data():
         st.error(f"파일 로드 중 오류 발생: {e}")
         return None
 
-# 3. 메인 실행 로직
+# 5. 메인 실행 로직
 def main():
-    st.title("📋 고객사양서 관리")
-    st.markdown("---")
+    # --- 좌상단 이미지 + 우상단 팀명 HTML 적용 ---
+    if logo_base64:
+        # 로고 파일이 있을 때 (보내주신 이미지 적용)
+        st.markdown(f"""
+            <div style="display: flex; justify-content: space-between; align-items: center; padding: 10px 0; margin-bottom: 20px; border-bottom: 1px solid rgba(250, 250, 250, 0.1);">
+                <div>
+                    <img src="data:image/png;base64,{logo_base64}" class="brand-logo" alt="logo">
+                </div>
+                <div class="team-name">품질기술팀</div>
+            </div>
+            """, unsafe_allow_html=True)
+    else:
+        # 로고 파일이 없을 때 (팀명만 우측 배치)
+        st.markdown("""
+            <div style="display: flex; justify-content: flex-end; align-items: center; padding: 10px 0; margin-bottom: 20px; border-bottom: 1px solid rgba(250, 250, 250, 0.1);">
+                <div class="team-name">품질기술팀</div>
+            </div>
+            """, unsafe_allow_html=True)
+    # ---------------------------------------------
 
     df = load_data()
 
@@ -91,7 +131,8 @@ def main():
         if selected_customer:
             row_data = df[df.iloc[:, 0].astype(str) == selected_customer].iloc[0]
             
-            st.subheader(f"■ {selected_customer}")
+            # 업체명 표시 (subheader 대신 markdown으로 색상 제어)
+            st.markdown(f"""<h3 style="color: #FF7F50 !important; font-weight: bold; margin-bottom: 20px;">■ {selected_customer}</h3>""", unsafe_allow_html=True)
             
             cols = row_data.index[1:]
             for col_name in cols:
@@ -99,10 +140,10 @@ def main():
                 # 특이사항 키워드 강조용
                 is_special = any(keyword in str(col_name) for keyword in ["특이사항", "주의", "마킹", "포장"])
                 
-                # 가독성을 위한 배경색 설정
-                bg_color = "#F8F9FA" 
-                text_color = "#212529" 
-                item_label_color = "#E63946" if is_special else "#495057"
+                # 표 스타일링 (다크 모드에서도 가독성 확보)
+                bg_color = "#f9f9f9" # 아주 연한 회색 (항목명 배경)
+                text_color = "#212529" # 검은색 계열 (내용 글자)
+                item_label_color = "#E63946" if is_special else "#495057" # 빨간색 강조
 
                 # --- 모바일 최적화 표 레이아웃 ---
                 st.markdown(
