@@ -10,7 +10,7 @@ st.set_page_config(
     layout="wide"
 )
 
-# 2. 이미지 변환 함수 (캐싱)
+# 2. 이미지를 웹 표시용으로 변환하는 함수
 @st.cache_data
 def get_image_base64(file_path):
     if not os.path.exists(file_path):
@@ -21,23 +21,28 @@ def get_image_base64(file_path):
     except:
         return ""
 
-# --- 로고 파일명 ---
+# --- 설정된 로고 파일명 ---
 LOGO_FILENAME = "hanjin_logo.png" 
 logo_base64 = get_image_base64(LOGO_FILENAME)
 
-# 3. UI 디자인 CSS (위치 및 크기 정밀 고정)
+# 3. UI 정밀 조정 CSS (디자인 사양 고정)
 st.markdown(f"""
     <style>
+    /* 상단 전체 레이아웃 */
     .header-wrapper {{
         position: relative;
         width: 100%;
         padding-top: 10px;
     }}
+    
+    /* 로고 크기 확대 (65px) */
     .brand-logo {{
         height: 65px; 
         width: auto;
         display: block;
     }}
+    
+    /* 품질기술팀 위치 (우측 하단 고정) */
     .team-name-fixed {{
         position: absolute;
         right: 0;
@@ -47,6 +52,8 @@ st.markdown(f"""
         font-weight: 600;
         letter-spacing: -0.5px;
     }}
+
+    /* 메인 타이틀 주황색 */
     .main-title {{
         color: #FF8C00 !important;
         font-weight: 800;
@@ -54,6 +61,8 @@ st.markdown(f"""
         margin-top: 15px;
         margin-bottom: 5px;
     }}
+
+    /* 업체명 주황색 */
     .customer-title {{
         color: #FF7F50 !important;
         font-weight: bold;
@@ -61,17 +70,21 @@ st.markdown(f"""
         margin-top: 30px;
         margin-bottom: 15px;
     }}
+
+    /* 사이드바 글자 강조 */
     .stSidebar [data-testid="stWidgetLabel"] p {{
         font-size: 15px !important;
         font-weight: bold;
     }}
+    
     .notranslate {{ translate: no !important; }}
     </style>
     """, unsafe_allow_html=True)
 
-# 4. 데이터 로드 및 정제 함수
+# 4. 데이터 로드 함수 (데이터 정제 포함)
 @st.cache_data
 def load_data():
+    # 파일명 후보
     file_candidates = ['고객 사양서.xlsx', '고객사양서.xlsx', 'spec.xlsx']
     target_file = None
     for f in file_candidates:
@@ -83,18 +96,24 @@ def load_data():
         return None
     
     try:
+        # 데이터 로드
         df = pd.read_excel(target_file, engine='openpyxl')
+        
+        # 컬럼명 앞뒤 공백 제거
         df.columns = [c.strip() if isinstance(c, str) else c for c in df.columns]
-        # 첫 번째 열(고객사명) 공백 제거
-        df.iloc[:, 0] = df.iloc[:, 0].astype(str).str.strip()
-        return df.fillna("-")
+        
+        # 데이터 전체를 문자열로 변환하고 앞뒤 공백 제거 (임의 해석 방지)
+        df = df.astype(str).apply(lambda x: x.str.strip())
+        
+        # 결측값 처리
+        return df.replace('nan', '-')
     except Exception as e:
         st.error(f"데이터 로드 실패: {e}")
         return None
 
 # 5. 메인 로직
 def main():
-    # 헤더 (로고 및 팀명)
+    # --- 상단 헤더 ---
     logo_html = f'<img src="data:image/png;base64,{logo_base64}" class="brand-logo">' if logo_base64 else '<div></div>'
     st.markdown(f"""
         <div class="header-wrapper">
@@ -111,31 +130,34 @@ def main():
     if df is not None:
         st.sidebar.header("🏢 고객사 목록")
         
-        # [핵심 해결 로직]
-        # 1. 라디오 버튼의 옵션 자체를 '숫자 리스트(0, 1, 2...)'로 넘깁니다. 
-        #    이렇게 하면 '에스비엔티'가 여러 개여도 컴퓨터는 서로 다른 번호로 인식합니다.
-        row_indices = list(range(len(df)))
+        # [중복 해결 핵심]
+        # 사용자님이 알려주신 대로 임의의 단어를 넣지 않고, 
+        # 엑셀의 [고객사명 | 규격명 | 치수 / 중량] 컬럼값을 그대로 합쳐서 고유 목록을 만듭니다.
+        # 이렇게 해야 '에스비엔티' 항목 2개가 서로 다른 버튼으로 인식됩니다.
+        df['display_name'] = df.iloc[:, 0] + " | " + df.iloc[:, 1] + " | " + df.iloc[:, 3]
+        display_options = df['display_name'].tolist()
 
-        selected_idx = st.sidebar.radio(
+        selected_option = st.sidebar.radio(
             "업체를 선택하세요:",
-            row_indices,
-            # 2. format_func: 숫자를 사용자에게 보여줄 때만 해당 행의 '업체명'으로 바꿔서 보여줍니다.
-            format_func=lambda i: df.iloc[i, 0],
-            index=None,
-            key="customer_radio" # 고유 키 부여로 상태 유지
+            display_options,
+            index=None
         )
 
-        if selected_idx is not None:
-            # 선택된 번호(index)의 행 데이터를 정확하게 추출
-            row_data = df.iloc[selected_idx]
+        if selected_option:
+            # 선택된 옵션과 일치하는 행 데이터를 추출
+            row_data = df[df['display_name'] == selected_option].iloc[0]
             customer_name = row_data.iloc[0]
             
+            # 선택된 업체명 표시
             st.markdown(f'<div class="customer-title">■ {customer_name}</div>', unsafe_allow_html=True)
             
-            # 테이블 데이터 출력
-            cols = row_data.index[1:]
-            for col_name in cols:
+            # 사양 상세 정보 테이블 출력 (생성한 display_name 열은 제외)
+            cols = row_data.index[:-1]
+            for i in range(1, len(cols)):
+                col_name = cols[i]
                 val = str(row_data[col_name])
+                
+                # 강조 키워드 체크
                 is_special = any(keyword in str(col_name) for keyword in ["특이사항", "주의", "마킹", "포장"])
                 
                 bg_color = "#F8F9FA" 
@@ -161,7 +183,7 @@ def main():
         else:
             st.info("왼쪽 사이드바에서 업체를 선택해 주세요.")
     else:
-        st.error("데이터 파일을 찾을 수 없습니다.")
+        st.error("데이터 파일을 불러올 수 없습니다.")
 
 if __name__ == "__main__":
     main()
