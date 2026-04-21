@@ -9,13 +9,24 @@ st.set_page_config(
     layout="wide"
 )
 
+# 모바일 최적화를 위한 커스텀 CSS (글자 색상 및 테이블 스타일)
+st.markdown("""
+    <style>
+    /* 기본 글자 색상을 검정으로 고정 */
+    .stApp {
+        color: black;
+    }
+    /* 사이드바 라디오 버튼 글자 크기 조정 */
+    .stSidebar .st-emotion-cache-17l7u9j {
+        font-size: 14px;
+    }
+    </style>
+    """, unsafe_allow_html=True)
+
 # 2. 데이터 로드 함수
 @st.cache_data
 def load_data():
-    # 깃허브 환경에서 한글 파일명을 인식하기 위한 리스트
-    # 공백이나 인코딩 문제가 생길 수 있어 여러 후보를 넣었습니다.
     file_candidates = ['고객 사양서.xlsx', 'test.xlsx', '고객사양서.xlsx']
-    
     target_file = None
     for f in file_candidates:
         if os.path.exists(f):
@@ -32,10 +43,8 @@ def load_data():
             except:
                 df = pd.read_csv(target_file, encoding='cp949')
         else:
-            # 엔진을 openpyxl로 명시하여 엑셀 로딩 안정성 확보
             df = pd.read_excel(target_file, engine='openpyxl')
         
-        # 첫 번째 컬럼(고객사명) 공백 제거
         df.columns = [c.strip() if isinstance(c, str) else c for c in df.columns]
         return df.fillna("-")
     except Exception as e:
@@ -44,7 +53,7 @@ def load_data():
 
 # 3. 메인 실행 로직
 def main():
-    st.title("📋 고객사양서 관리 시스템")
+    st.title("📋 고객사양서 관리")
     st.markdown("---")
 
     df = load_data()
@@ -54,30 +63,34 @@ def main():
         customer_list = df.iloc[:, 0].astype(str).tolist()
         
         selected_customer = st.sidebar.radio(
-            "조회할 업체를 선택하세요:",
+            "업체를 선택하세요:",
             customer_list,
             index=None
         )
 
         if selected_customer:
             row_data = df[df.iloc[:, 0].astype(str) == selected_customer].iloc[0]
-            st.subheader(f"■ {selected_customer} 상세 사양")
+            st.subheader(f"■ {selected_customer}")
             
             cols = row_data.index[1:]
             for col_name in cols:
                 val = str(row_data[col_name])
+                # 강조 키워드
                 is_special = any(k in str(col_name) for k in ["특이사항", "주의", "마킹"])
                 
-                text_color = "red" if is_special else "black"
-                font_weight = "bold" if is_special else "normal"
+                # 모바일 최적화 스타일링
+                # 항목명(좌측) 너비를 100px로 축소하여 내용 공간 확보
+                bg_color = "#F8F9FA" 
+                text_color = "#E63946" if is_special else "#212529" # 강조는 빨강, 기본은 진한 회색(검정)
+                font_weight = "bold" if is_special else "500"
 
                 st.markdown(
                     f"""
-                    <div style="display: flex; border: 1px solid #CCCCCC; margin-bottom: -1px;">
-                        <div style="background-color: #F2F2F2; width: 220px; padding: 12px; font-weight: bold; border-right: 1px solid #CCCCCC;">
+                    <div style="display: flex; border: 1px solid #DEE2E6; margin-bottom: -1px; font-size: 14px;">
+                        <div style="background-color: {bg_color}; width: 90px; min-width: 90px; padding: 10px 5px; font-weight: bold; color: #495057; border-right: 1px solid #DEE2E6; display: flex; align-items: center; justify-content: center; text-align: center;">
                             {col_name}
                         </div>
-                        <div style="flex: 1; padding: 12px; color: {text_color}; font-weight: {font_weight}; background-color: white;">
+                        <div style="flex: 1; padding: 10px; color: {text_color}; font-weight: {font_weight}; background-color: white; word-break: break-all;">
                             {val}
                         </div>
                     </div>
@@ -86,9 +99,7 @@ def main():
         else:
             st.info("왼쪽 목록에서 업체를 선택해 주세요.")
     else:
-        # 파일이 없을 때 메시지
-        st.error("데이터 파일('고객 사양서.xlsx')을 찾을 수 없습니다.")
-        st.info("팁: 깃허브의 엑셀 파일 이름을 'test.xlsx'로 바꾸면 더 잘 인식됩니다.")
+        st.error("데이터 파일을 찾을 수 없습니다.")
 
 if __name__ == "__main__":
     main()
