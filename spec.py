@@ -3,12 +3,11 @@ import pandas as pd
 import os
 import base64
 
-# 1. 페이지 설정 (모바일 최적화를 위해 sidebar_state를 auto로 설정)
+# 1. 페이지 설정
 st.set_page_config(
     page_title="고객사양서 - 품질기술팀",
     page_icon="📋",
-    layout="wide",
-    initial_sidebar_state="auto"
+    layout="wide"
 )
 
 # 2. 이미지를 웹 표시용으로 변환하는 함수
@@ -22,11 +21,11 @@ def get_image_base64(file_path):
     except:
         return ""
 
-# --- 로고 파일명 설정 (바탕화면에 함께 두세요) ---
+# --- 로고 파일명 설정 ---
 LOGO_FILENAME = "hanjin_logo.png" 
 logo_base64 = get_image_base64(LOGO_FILENAME)
 
-# 3. UI 정밀 조정 CSS (디자인 사양 유지 및 모바일 가독성 강화)
+# 3. UI 정밀 조정 CSS (사용자 요청 사양 100% 반영)
 st.markdown(f"""
     <style>
     /* 상단 전체 레이아웃 */
@@ -36,14 +35,14 @@ st.markdown(f"""
         padding-top: 10px;
     }}
     
-    /* 로고 크기 65px 및 좌상단 배치 */
+    /* 로고 크기 및 위치 (좌상단 65px) */
     .brand-logo {{
         height: 65px; 
         width: auto;
         display: block;
     }}
     
-    /* 품질기술팀 우측 하단 고정 */
+    /* 품질기술팀 위치 (우측 하단 고정) */
     .team-name-fixed {{
         position: absolute;
         right: 0;
@@ -74,21 +73,15 @@ st.markdown(f"""
 
     /* 사이드바 글자 강조 */
     .stSidebar [data-testid="stWidgetLabel"] p {{
-        font-size: 16px !important;
+        font-size: 15px !important;
         font-weight: bold;
     }}
     
-    /* 모바일에서 테이블 텍스트가 너무 깨지지 않도록 조정 */
-    @media (max-width: 768px) {{
-        .main-title {{ font-size: 1.5rem; }}
-        .customer-title {{ font-size: 1.25rem; }}
-    }}
-
     .notranslate {{ translate: no !important; }}
     </style>
     """, unsafe_allow_html=True)
 
-# 4. 데이터 로드 및 전처리 (빈 줄 제거 및 경로 최적화)
+# 4. 데이터 로드 및 전처리 (빈 행 제거 및 경로 최적화)
 @st.cache_data
 def load_data():
     current_dir = os.path.dirname(os.path.abspath(__file__))
@@ -111,10 +104,17 @@ def load_data():
         # 데이터 로드
         df = pd.read_excel(target_path, engine='openpyxl')
         
-        # [전처리] 첫 번째 열(고객사명) 기준 빈 행 및 무의미한 행 완전 제거
+        # [품목 늘리기 대응 및 빈 줄 제거 핵심 로직]
+        # 1. 첫 번째 열(고객사명)이 비어있는(NaN) 행을 제거합니다.
         df = df.dropna(subset=[df.columns[0]])
+        
+        # 2. 모든 데이터를 문자열로 변환하고 앞뒤 공백을 제거합니다.
         df = df.astype(str).apply(lambda x: x.str.strip())
-        df = df[~df.iloc[:, 0].isin(["", "nan", "-", "None"])]
+        
+        # 3. 업체명이 비어있거나 "-"만 있는 행은 메뉴에서 제외합니다.
+        df = df[df.iloc[:, 0] != ""]
+        df = df[df.iloc[:, 0] != "nan"]
+        df = df[df.iloc[:, 0] != "-"]
         
         return df.replace('nan', '-')
     except Exception as e:
@@ -123,7 +123,7 @@ def load_data():
 
 # 5. 메인 로직
 def main():
-    # --- 상단 헤더 영역 ---
+    # --- 헤더 구성 ---
     logo_html = f'<img src="data:image/png;base64,{logo_base64}" class="brand-logo">' if logo_base64 else '<div></div>'
     st.markdown(f"""
         <div class="header-wrapper">
@@ -140,18 +140,19 @@ def main():
     if df is not None:
         st.sidebar.header("🏢 고객사 목록")
         
-        # 중복 방지를 위한 인덱스 기반 라디오 버튼
+        # 중복 방지 및 튕김 해결을 위해 인덱스 기반으로 라디오 버튼 생성
         row_indices = list(range(len(df)))
 
         selected_idx = st.sidebar.radio(
             "업체를 선택하세요:",
             row_indices,
+            # 사이드바에는 엑셀 첫 번째 열의 업체명을 그대로 보여줌
             format_func=lambda i: df.iloc[i, 0],
             index=None
         )
 
         if selected_idx is not None:
-            # 선택 시 모바일 사용자를 위한 안내 (사이드바 수동 조작 안내)
+            # 선택된 번호의 데이터를 정확히 추출
             row_data = df.iloc[selected_idx]
             customer_name = row_data.iloc[0]
             
@@ -163,7 +164,7 @@ def main():
                 col_name = cols[i]
                 val = str(row_data[col_name])
                 
-                # 핵심 키워드 빨간색 강조
+                # 특이사항/주의/마킹/포장 키워드 강조 (빨간색)
                 is_special = any(keyword in str(col_name) for keyword in ["특이사항", "주의", "마킹", "포장"])
                 
                 bg_color = "#F8F9FA" 
@@ -185,15 +186,13 @@ def main():
                     </div>
                     """, unsafe_allow_html=True
                 )
-            
-            # 하단 안내 문구 (모바일 가독성 보조)
-            st.markdown("<br>", unsafe_allow_html=True)
-            st.caption("💡 다른 업체를 찾으려면 왼쪽 상단 화살표( > )를 눌러 메뉴를 다시 열어주세요.")
             st.markdown("<br><br>", unsafe_allow_html=True)
         else:
             st.info("왼쪽 사이드바에서 업체를 선택해 주세요.")
     else:
-        st.error("엑셀 파일을 찾을 수 없습니다. [test.py]가 있는 위치에 [고객 사양서.xlsx]가 있는지 확인해 주세요.")
+        st.error("엑셀 파일을 찾을 수 없습니다. [test.py]와 [고객 사양서.xlsx]가 같은 폴더에 있는지 확인해 주세요.")
 
+if __name__ == "__main__":
+    main()
 
-
+    
