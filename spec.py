@@ -10,7 +10,7 @@ st.set_page_config(
     layout="wide"
 )
 
-# 2. 이미지를 웹 표시용으로 변환하는 함수 (오류 해결 핵심)
+# 2. 이미지를 웹 표시용으로 변환하는 함수
 @st.cache_data
 def get_image_base64(file_path):
     if not os.path.exists(file_path):
@@ -21,28 +21,36 @@ def get_image_base64(file_path):
     except:
         return ""
 
-# --- 파일명은 반드시 깃허브와 동일해야 합니다 ---
+# --- 영어로 변경하신 파일명과 일치시켰습니다 ---
 LOGO_FILENAME = "hanjin_logo.png" 
 # --------------------------------------------
 
 logo_base64 = get_image_base64(LOGO_FILENAME)
 
-# 3. UI 최적화 CSS (주황색 테마 및 레이아웃)
+# 3. UI 최적화 CSS (로고 확대 및 팀명 위치 조정)
 st.markdown(f"""
     <style>
-    /* 상단 헤더 (로고 & 품질기술팀) */
+    /* 상단 헤더 영역 */
     .header-container {{
         display: flex;
         justify-content: space-between;
         align-items: center;
-        padding: 5px 0;
-        margin-bottom: 10px;
+        padding: 10px 0;
+        margin-bottom: 5px;
     }}
-    .brand-logo {{ height: 38px; width: auto; }}
+    
+    /* 로고 크기 확대 */
+    .brand-logo {{
+        height: 55px; /* 기존보다 약 40% 확대 */
+        width: auto;
+    }}
+    
+    /* 품질기술팀 문구 위치 (오른쪽 끝 작은 박스 영역) */
     .team-name {{
         color: #CCCCCC !important;
-        font-size: 14px; /* 1pt 키움 */
+        font-size: 14px;
         font-weight: 600;
+        margin-top: 15px; /* 로고와 높이 밸런스 조정 */
     }}
 
     /* 메인 타이틀 주황색 */
@@ -50,7 +58,7 @@ st.markdown(f"""
         color: #FF8C00 !important;
         font-weight: 800;
         font-size: 1.8rem;
-        margin-top: 10px;
+        margin-top: 5px;
     }}
 
     /* 업체명 주황색 */
@@ -72,10 +80,10 @@ st.markdown(f"""
     </style>
     """, unsafe_allow_html=True)
 
-# 4. 데이터 로드 함수 (중복 처리 포함)
+# 4. 데이터 로드 함수 (중복 제거 포함)
 @st.cache_data
 def load_data():
-    file_candidates = ['고객 사양서.xlsx', '고객사양서.xlsx', 'spec.xlsx', 'test.xlsx']
+    file_candidates = ['고객 사양서.xlsx', '고객사양서.xlsx', 'spec.xlsx']
     target_file = None
     for f in file_candidates:
         if os.path.exists(f):
@@ -87,18 +95,17 @@ def load_data():
     
     try:
         df = pd.read_excel(target_file, engine='openpyxl')
-        # 모든 컬럼명 공백 제거
+        # 데이터 정제 (공백 제거)
         df.columns = [c.strip() if isinstance(c, str) else c for c in df.columns]
-        # 첫 번째 열(업체명)의 데이터 공백 제거
         df.iloc[:, 0] = df.iloc[:, 0].astype(str).str.strip()
         return df.fillna("-")
     except Exception as e:
         st.error(f"데이터 로드 실패: {e}")
         return None
 
-# 5. 메인 실행
+# 5. 메인 실행 로직
 def main():
-    # 상단 헤더 출력 (로고 + 품질기술팀)
+    # --- 상단 로고(좌) 및 품질기술팀(우) 배치 ---
     logo_html = f'<img src="data:image/png;base64,{logo_base64}" class="brand-logo">' if logo_base64 else '<div></div>'
     st.markdown(f"""
         <div class="header-container">
@@ -107,7 +114,7 @@ def main():
         </div>
         """, unsafe_allow_html=True)
 
-    # 메인 제목 (주황색)
+    # 메인 제목
     st.markdown('<div class="main-title">📋 고객사양서 관리</div>', unsafe_allow_html=True)
     st.markdown("---")
 
@@ -115,7 +122,7 @@ def main():
 
     if df is not None:
         st.sidebar.header("🏢 고객사 목록")
-        # 중복 제거 및 가나다순 정렬 (에스비엔티 문제 해결)
+        # 중복 제거 및 가나다순 정렬
         customer_list = sorted(list(set(df.iloc[:, 0].tolist())))
         
         selected_customer = st.sidebar.radio(
@@ -125,10 +132,9 @@ def main():
         )
 
         if selected_customer:
-            # 선택된 업체 데이터 필터링
+            # 선택 업체 필터링
             row_data = df[df.iloc[:, 0] == selected_customer].iloc[0]
             
-            # 업체명 표시 (주황색)
             st.markdown(f'<div class="customer-title">■ {selected_customer}</div>', unsafe_allow_html=True)
             
             cols = row_data.index[1:]
@@ -159,9 +165,8 @@ def main():
         else:
             st.info("왼쪽 사이드바에서 업체를 선택해 주세요.")
     else:
-        st.error("엑셀 파일을 찾을 수 없습니다. 깃허브에 파일이 있는지 확인해 주세요.")
+        st.error("엑셀 파일을 찾을 수 없습니다.")
 
 if __name__ == "__main__":
     main()
-
 
