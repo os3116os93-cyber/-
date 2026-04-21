@@ -22,7 +22,7 @@ def get_image_base64(file_path):
         return ""
 
 # --- 파일명은 반드시 깃허브와 동일해야 합니다 ---
-LOGO_FILENAME = "한진철관CI 누끼.png" 
+LOGO_FILENAME = "hanjin_logo.png" 
 # --------------------------------------------
 
 logo_base64 = get_image_base64(LOGO_FILENAME)
