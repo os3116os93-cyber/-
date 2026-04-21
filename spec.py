@@ -9,14 +9,23 @@ st.set_page_config(
     layout="wide"
 )
 
-# 모바일 최적화를 위한 커스텀 CSS (글자 색상 및 테이블 스타일)
+# 다크 모드 대응 및 주황색 포인트 가독성 최적화 CSS
 st.markdown("""
     <style>
-    /* 기본 글자 색상을 검정으로 고정 */
-    .stApp {
-        color: black;
+    /* 1. 상단 메인 제목 글자 색상을 주황색으로 고정 */
+    .stApp header[data-testid="stHeader"] + div .st-emotion-cache-1avcm0n h1 {
+        color: #FF8C00 !important; /* 다크오렌지 */
+        text-shadow: 1px 1px 2px rgba(0,0,0,0.3);
+        font-weight: 800;
     }
-    /* 사이드바 라디오 버튼 글자 크기 조정 */
+    
+    /* 2. 하단 업체명(Subheader) 글자 색상을 주황색으로 고정 */
+    .stApp header[data-testid="stHeader"] + div .st-emotion-cache-1avcm0n h3 {
+        color: #FF7F50 !important; /* 코랄/주황 계열 */
+        font-weight: bold;
+    }
+
+    /* 3. 사이드바 내부 텍스트 가독성 조정 */
     .stSidebar .st-emotion-cache-17l7u9j {
         font-size: 14px;
     }
@@ -53,6 +62,7 @@ def load_data():
 
 # 3. 메인 실행 로직
 def main():
+    # 메인 제목 (주황색 적용)
     st.title("📋 고객사양서 관리")
     st.markdown("---")
 
@@ -70,32 +80,36 @@ def main():
 
         if selected_customer:
             row_data = df[df.iloc[:, 0].astype(str) == selected_customer].iloc[0]
+            
+            # 업체명 표시 (주황색 적용)
             st.subheader(f"■ {selected_customer}")
             
             cols = row_data.index[1:]
             for col_name in cols:
                 val = str(row_data[col_name])
-                # 강조 키워드
-                is_special = any(k in str(col_name) for k in ["특이사항", "주의", "마킹"])
+                is_special = any(keyword in str(col_name) for keyword in ["특이사항", "주의", "마킹"])
                 
-                # 모바일 최적화 스타일링
-                # 항목명(좌측) 너비를 100px로 축소하여 내용 공간 확보
+                # 표 스타일링: 항목명(좌측)은 회색 배경, 내용은 흰색 배경 고정
                 bg_color = "#F8F9FA" 
-                text_color = "#E63946" if is_special else "#212529" # 강조는 빨강, 기본은 진한 회색(검정)
-                font_weight = "bold" if is_special else "500"
+                text_color = "black" 
+                
+                # 강조 대상(특이사항 등)은 빨간색으로 유지하여 시인성 확보
+                item_label_color = "#E63946" if is_special else "#495057"
 
                 st.markdown(
                     f"""
                     <div style="display: flex; border: 1px solid #DEE2E6; margin-bottom: -1px; font-size: 14px;">
-                        <div style="background-color: {bg_color}; width: 90px; min-width: 90px; padding: 10px 5px; font-weight: bold; color: #495057; border-right: 1px solid #DEE2E6; display: flex; align-items: center; justify-content: center; text-align: center;">
+                        <div style="background-color: {bg_color}; width: 100px; min-width: 100px; padding: 10px 5px; font-weight: bold; color: {item_label_color}; border-right: 1px solid #DEE2E6; display: flex; align-items: center; justify-content: center; text-align: center;">
                             {col_name}
                         </div>
-                        <div style="flex: 1; padding: 10px; color: {text_color}; font-weight: {font_weight}; background-color: white; word-break: break-all;">
+                        <div style="flex: 1; padding: 10px; color: {text_color}; font-weight: 500; background-color: white; word-break: break-all;">
                             {val}
                         </div>
                     </div>
                     """, unsafe_allow_html=True
                 )
+            st.markdown("<br><br>", unsafe_allow_html=True)
+            
         else:
             st.info("왼쪽 목록에서 업체를 선택해 주세요.")
     else:
