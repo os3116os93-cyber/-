@@ -9,33 +9,43 @@ st.set_page_config(
     layout="wide"
 )
 
-# 다크 모드 대응 및 주황색 포인트 가독성 최적화 CSS
+# 다크 모드 대응 및 UI 최적화 CSS
 st.markdown("""
     <style>
-    /* 1. 상단 메인 제목 글자 색상을 주황색으로 고정 */
-    .stApp header[data-testid="stHeader"] + div .st-emotion-cache-1avcm0n h1 {
-        color: #FF8C00 !important; /* 다크오렌지 */
-        text-shadow: 1px 1px 2px rgba(0,0,0,0.3);
+    /* 1. 상단 메인 제목 주황색 고정 */
+    .stApp h1 {
+        color: #FF8C00 !important;
+        text-shadow: 1px 1px 2px rgba(0,0,0,0.2);
         font-weight: 800;
+        font-size: 1.8rem !important;
     }
     
-    /* 2. 하단 업체명(Subheader) 글자 색상을 주황색으로 고정 */
-    .stApp header[data-testid="stHeader"] + div .st-emotion-cache-1avcm0n h3 {
-        color: #FF7F50 !important; /* 코랄/주황 계열 */
+    /* 2. 하단 업체명 주황색 고정 */
+    .stApp h3 {
+        color: #FF7F50 !important;
+        font-weight: bold;
+        font-size: 1.4rem !important;
+    }
+
+    /* 3. 사이드바 라디오 버튼 글자 크기 조정 */
+    .stSidebar [data-testid="stWidgetLabel"] p {
+        font-size: 15px !important;
         font-weight: bold;
     }
-
-    /* 3. 사이드바 내부 텍스트 가독성 조정 */
-    .stSidebar .st-emotion-cache-17l7u9j {
-        font-size: 14px;
-    }
+    
+    /* 브라우저 번역 방지 */
+    .notranslate { translate: no !important; }
     </style>
+    <script>
+        document.documentElement.classList.add('notranslate');
+    </script>
     """, unsafe_allow_html=True)
 
-# 2. 데이터 로드 함수
+# 2. 데이터 로드 함수 (파일 확장자 통합 대응)
 @st.cache_data
 def load_data():
-    file_candidates = ['고객 사양서.xlsx', 'test.xlsx', '고객사양서.xlsx']
+    # 깃허브에 올릴 가능성이 있는 파일명들
+    file_candidates = ['고객 사양서.xlsx', '고객사양서.xlsx', 'test.xlsx', '고객 사양서.csv']
     target_file = None
     for f in file_candidates:
         if os.path.exists(f):
@@ -62,7 +72,6 @@ def load_data():
 
 # 3. 메인 실행 로직
 def main():
-    # 메인 제목 (주황색 적용)
     st.title("📋 고객사양서 관리")
     st.markdown("---")
 
@@ -70,6 +79,7 @@ def main():
 
     if df is not None:
         st.sidebar.header("🏢 고객사 목록")
+        # 첫 번째 열이 업체명이라고 가정
         customer_list = df.iloc[:, 0].astype(str).tolist()
         
         selected_customer = st.sidebar.radio(
@@ -81,28 +91,31 @@ def main():
         if selected_customer:
             row_data = df[df.iloc[:, 0].astype(str) == selected_customer].iloc[0]
             
-            # 업체명 표시 (주황색 적용)
             st.subheader(f"■ {selected_customer}")
             
             cols = row_data.index[1:]
             for col_name in cols:
                 val = str(row_data[col_name])
-                is_special = any(keyword in str(col_name) for keyword in ["특이사항", "주의", "마킹"])
+                # 특이사항 키워드 강조용
+                is_special = any(keyword in str(col_name) for keyword in ["특이사항", "주의", "마킹", "포장"])
                 
-                # 표 스타일링: 항목명(좌측)은 회색 배경, 내용은 흰색 배경 고정
+                # 가독성을 위한 배경색 설정
                 bg_color = "#F8F9FA" 
-                text_color = "black" 
-                
-                # 강조 대상(특이사항 등)은 빨간색으로 유지하여 시인성 확보
+                text_color = "#212529" 
                 item_label_color = "#E63946" if is_special else "#495057"
 
+                # --- 모바일 최적화 표 레이아웃 ---
                 st.markdown(
                     f"""
-                    <div style="display: flex; border: 1px solid #DEE2E6; margin-bottom: -1px; font-size: 14px;">
-                        <div style="background-color: {bg_color}; width: 100px; min-width: 100px; padding: 10px 5px; font-weight: bold; color: {item_label_color}; border-right: 1px solid #DEE2E6; display: flex; align-items: center; justify-content: center; text-align: center;">
+                    <div style="display: flex; border: 1px solid #DEE2E6; margin-bottom: -1px;">
+                        <div style="background-color: {bg_color}; width: 80px; min-width: 80px; padding: 10px 4px; 
+                                    font-weight: bold; color: {item_label_color}; border-right: 1px solid #DEE2E6; 
+                                    display: flex; align-items: center; justify-content: center; text-align: center; 
+                                    font-size: 12px; line-height: 1.2; word-break: keep-all;">
                             {col_name}
                         </div>
-                        <div style="flex: 1; padding: 10px; color: {text_color}; font-weight: 500; background-color: white; word-break: break-all;">
+                        <div style="flex: 1; padding: 10px; color: {text_color}; font-weight: 500; 
+                                    background-color: white; word-break: break-all; font-size: 13px; line-height: 1.4;">
                             {val}
                         </div>
                     </div>
@@ -111,9 +124,9 @@ def main():
             st.markdown("<br><br>", unsafe_allow_html=True)
             
         else:
-            st.info("왼쪽 목록에서 업체를 선택해 주세요.")
+            st.info("왼쪽 사이드바에서 업체를 선택해 주세요.")
     else:
-        st.error("데이터 파일을 찾을 수 없습니다.")
+        st.error("데이터 파일(엑셀)을 찾을 수 없습니다. GitHub에 엑셀 파일이 있는지 확인해 주세요.")
 
 if __name__ == "__main__":
     main()
