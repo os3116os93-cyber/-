@@ -10,120 +10,116 @@ st.set_page_config(
     layout="wide"
 )
 
-# 2. 이미지를 웹 표시용으로 변환하는 함수
+# 2. 로고 이미지 변환 함수
 @st.cache_data
 def get_image_base64(file_path):
-    if not os.path.exists(file_path):
-        return ""
+    if not os.path.exists(file_path): return ""
     try:
         with open(file_path, "rb") as img_file:
             return base64.b64encode(img_file.read()).decode()
-    except:
-        return ""
+    except: return ""
 
-# --- 로고 파일명 설정 ---
+# --- 로고 파일명 및 데이터 로드 ---
 LOGO_FILENAME = "hanjin_logo.png" 
 logo_base64 = get_image_base64(LOGO_FILENAME)
 
-# 3. UI 정밀 조정 CSS (사용자 요청 사양 100% 반영)
+# 3. UI 스타일 (로고/팀명 복구 및 품질표 스타일 유지)
 st.markdown(f"""
     <style>
-    /* 상단 전체 레이아웃 */
+    /* [복구] 상단 헤더 영역 레이아웃 */
     .header-wrapper {{
         position: relative;
         width: 100%;
-        padding-top: 10px;
+        height: 80px;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        margin-bottom: 10px;
     }}
     
-    /* 로고 크기 및 위치 (좌상단 65px) */
+    /* [복구] 좌측 한진철관 로고 */
     .brand-logo {{
         height: 65px; 
         width: auto;
-        display: block;
     }}
     
-    /* 품질기술팀 위치 (우측 하단 고정) */
+    /* [복구] 우측 품질기술팀 문구 */
     .team-name-fixed {{
-        position: absolute;
-        right: 0;
-        bottom: 5px;
-        color: rgba(255, 255, 255, 0.6) !important;
         font-size: 14px;
         font-weight: 600;
+        color: rgba(0, 0, 0, 0.5) !important; /* 가독성을 위해 반투명 검정 */
         letter-spacing: -0.5px;
+        align-self: flex-end;
+        padding-bottom: 10px;
     }}
 
-    /* 메인 타이틀 주황색 */
-    .main-title {{
-        color: #FF8C00 !important;
-        font-weight: 800;
-        font-size: 1.85rem;
-        margin-top: 15px;
-        margin-bottom: 5px;
+    .main-title {{ color: #FF8C00 !important; font-weight: 800; font-size: 1.85rem; margin-top: 10px; }}
+    .customer-title {{ color: #FF7F50 !important; font-weight: bold; font-size: 1.45rem; margin-top: 30px; margin-bottom: 15px; }}
+    
+    /* 품질보증기준 테이블 스타일 (중앙정렬, 배경제거, 일반두께, 검정글씨) */
+    .qc-table {{ 
+        width: auto; 
+        min-width: 600px; 
+        border-collapse: collapse; 
+        margin-top: 10px; 
+        font-size: 12px; 
+        border: 1px solid #DEE2E6; 
     }}
-
-    /* 업체명 주황색 */
-    .customer-title {{
-        color: #FF7F50 !important;
-        font-weight: bold;
-        font-size: 1.45rem;
-        margin-top: 30px;
-        margin-bottom: 15px;
+    .qc-table th, .qc-table td {{ 
+        padding: 8px 12px; 
+        border: 1px solid #DEE2E6; 
+        text-align: center !important;
+        vertical-align: middle !important;
+        background-color: white !important;
+        color: #000000 !important;
+        font-weight: normal !important;
+        white-space: nowrap; 
     }}
-
-    /* 사이드바 글자 강조 */
-    .stSidebar [data-testid="stWidgetLabel"] p {{
-        font-size: 15px !important;
-        font-weight: bold;
+    .qc-table td:nth-child(3), .qc-table td:nth-child(4) {{
+        white-space: normal; 
+        min-width: 220px;
+        max-width: 450px;
     }}
     
-    .notranslate {{ translate: no !important; }}
+    .footer-note {{ font-size: 12.5px; color: #666; margin-top: 15px; font-weight: 500; }}
     </style>
     """, unsafe_allow_html=True)
 
-# 4. 데이터 로드 및 전처리 (빈 행 제거 및 경로 최적화)
+# 4. 데이터 로드 및 병합 로직
+def get_rowspan_data(df):
+    col_count = len(df.columns)
+    row_count = len(df)
+    all_spans = []
+    for c in range(col_count):
+        col_data = df.iloc[:, c].astype(str).replace('nan', '').tolist()
+        spans = []
+        i = 0
+        while i < row_count:
+            curr = col_data[i].strip()
+            count = 1
+            if curr != "":
+                while i + count < row_count and col_data[i+count].strip() == "":
+                    count += 1
+            spans.append(count)
+            for _ in range(count - 1): spans.append(0)
+            i += count
+        all_spans.append(spans)
+    return all_spans
+
 @st.cache_data
-def load_data():
+def load_excel_data(file_name, skip_rows=0):
     current_dir = os.path.dirname(os.path.abspath(__file__))
-    file_candidates = ['고객 사양서.xlsx', '고객사양서.xlsx', 'spec.xlsx']
-    target_path = None
-
-    for f in file_candidates:
-        if os.path.exists(f):
-            target_path = f
-            break
-        full_path = os.path.join(current_dir, f)
-        if os.path.exists(full_path):
-            target_path = full_path
-            break
-    
-    if not target_path:
-        return None
-    
+    target_path = os.path.join(current_dir, file_name)
+    if not os.path.exists(target_path): return None
     try:
-        # 데이터 로드
-        df = pd.read_excel(target_path, engine='openpyxl')
-        
-        # [품목 늘리기 대응 및 빈 줄 제거 핵심 로직]
-        # 1. 첫 번째 열(고객사명)이 비어있는(NaN) 행을 제거합니다.
-        df = df.dropna(subset=[df.columns[0]])
-        
-        # 2. 모든 데이터를 문자열로 변환하고 앞뒤 공백을 제거합니다.
-        df = df.astype(str).apply(lambda x: x.str.strip())
-        
-        # 3. 업체명이 비어있거나 "-"만 있는 행은 메뉴에서 제외합니다.
-        df = df[df.iloc[:, 0] != ""]
-        df = df[df.iloc[:, 0] != "nan"]
-        df = df[df.iloc[:, 0] != "-"]
-        
-        return df.replace('nan', '-')
-    except Exception as e:
-        st.error(f"데이터 로드 실패: {e}")
-        return None
+        df = pd.read_excel(target_path, engine='openpyxl', skiprows=skip_rows)
+        # ※ 행 제거
+        df = df[~df.iloc[:, 0].astype(str).str.contains("※", na=False)]
+        return df
+    except: return None
 
-# 5. 메인 로직
 def main():
-    # --- 헤더 구성 ---
+    # [복구] 로고와 팀명을 포함한 헤더 렌더링
     logo_html = f'<img src="data:image/png;base64,{logo_base64}" class="brand-logo">' if logo_base64 else '<div></div>'
     st.markdown(f"""
         <div class="header-wrapper">
@@ -131,66 +127,55 @@ def main():
             <div class="team-name-fixed">품질기술팀</div>
         </div>
         """, unsafe_allow_html=True)
+    
+    st.markdown('<div class="main-title">📋 품질 통합 관리 시스템</div>', unsafe_allow_html=True)
 
-    st.markdown('<div class="main-title">📋 고객사양서 관리</div>', unsafe_allow_html=True)
-    st.markdown("<hr style='margin: 10px 0; border: 0.5px solid rgba(250,250,250,0.1);'>", unsafe_allow_html=True)
+    tab1, tab2 = st.tabs(["📄 고객 사양서", "⚖️ 품질 보증 기준"])
 
-    df = load_data()
+    # --- TAB 1: 고객 사양서 ---
+    with tab1:
+        df_cust = load_excel_data("고객 사양서.xlsx")
+        if df_cust is not None:
+            df_cust = df_cust.dropna(subset=[df_cust.columns[0]]).astype(str).apply(lambda x: x.str.strip())
+            st.sidebar.header("🏢 고객사 목록")
+            sel_idx = st.sidebar.radio("업체를 선택하세요:", range(len(df_cust)), format_func=lambda i: df_cust.iloc[i, 0], index=None)
+            if sel_idx is not None:
+                row = df_cust.iloc[sel_idx]
+                st.markdown(f'<div class="customer-title">■ {row.iloc[0]}</div>', unsafe_allow_html=True)
+                for i in range(1, len(row.index)):
+                    col_n, val = row.index[i], str(row[i])
+                    is_sp = any(k in str(col_n) for k in ["특이사항", "주의", "마킹", "포장"])
+                    c = "#E63946" if is_sp else "#495057"
+                    st.markdown(f"""
+                        <div style="display: flex; border: 1px solid #DEE2E6; margin-bottom: -1px;">
+                            <div style="background-color: #F8F9FA; width: 85px; min-width: 85px; padding: 10px 4px; font-weight: bold; color: {c}; border-right: 1px solid #DEE2E6; display: flex; align-items: center; justify-content: center; text-align: center; font-size: 12px; line-height: 1.2; word-break: keep-all;">{col_n}</div>
+                            <div style="flex: 1; padding: 10px; background-color: white; font-size: 13.5px; line-height: 1.4; color: #212529; font-weight: 500; word-break: break-all;">{val}</div>
+                        </div>""", unsafe_allow_html=True)
 
-    if df is not None:
-        st.sidebar.header("🏢 고객사 목록")
+    # --- TAB 2: 품질 보증 기준 ---
+    with tab2:
+        st.markdown('<div class="customer-title">⚖️ 품질 보증 표준 가이드</div>', unsafe_allow_html=True)
+        df_qc = load_excel_data("품질보증기준.xlsx", skip_rows=5)
         
-        # 중복 방지 및 튕김 해결을 위해 인덱스 기반으로 라디오 버튼 생성
-        row_indices = list(range(len(df)))
-
-        selected_idx = st.sidebar.radio(
-            "업체를 선택하세요:",
-            row_indices,
-            # 사이드바에는 엑셀 첫 번째 열의 업체명을 그대로 보여줌
-            format_func=lambda i: df.iloc[i, 0],
-            index=None
-        )
-
-        if selected_idx is not None:
-            # 선택된 번호의 데이터를 정확히 추출
-            row_data = df.iloc[selected_idx]
-            customer_name = row_data.iloc[0]
+        if df_qc is not None:
+            all_spans = get_rowspan_data(df_qc)
+            table_html = '<table class="qc-table"><thead><tr>'
+            for col in df_qc.columns:
+                table_html += f'<th>{col}</th>'
+            table_html += '</tr></thead><tbody>'
             
-            st.markdown(f'<div class="customer-title">■ {customer_name}</div>', unsafe_allow_html=True)
+            for r in range(len(df_qc)):
+                table_html += '<tr>'
+                for c in range(len(df_qc.columns)):
+                    span_val = all_spans[c][r]
+                    if span_val > 0:
+                        cell_content = str(df_qc.iloc[r, c]).replace("nan", "").replace("(", "<br>(")
+                        table_html += f'<td rowspan="{span_val}">{cell_content}</td>'
+                table_html += '</tr>'
+            table_html += '</tbody></table>'
             
-            # 상세 내용 테이블 출력
-            cols = row_data.index
-            for i in range(1, len(cols)):
-                col_name = cols[i]
-                val = str(row_data[col_name])
-                
-                # 특이사항/주의/마킹/포장 키워드 강조 (빨간색)
-                is_special = any(keyword in str(col_name) for keyword in ["특이사항", "주의", "마킹", "포장"])
-                
-                bg_color = "#F8F9FA" 
-                item_label_color = "#E63946" if is_special else "#495057"
-
-                st.markdown(
-                    f"""
-                    <div style="display: flex; border: 1px solid #DEE2E6; margin-bottom: -1px;">
-                        <div style="background-color: {bg_color}; width: 85px; min-width: 85px; padding: 10px 4px; 
-                                    font-weight: bold; color: {item_label_color}; border-right: 1px solid #DEE2E6; 
-                                    display: flex; align-items: center; justify-content: center; text-align: center; 
-                                    font-size: 12px; line-height: 1.2; word-break: keep-all;">
-                            {col_name}
-                        </div>
-                        <div style="flex: 1; padding: 10px; color: #212529; font-weight: 500; 
-                                    background-color: white; word-break: break-all; font-size: 13.5px; line-height: 1.4;">
-                            {val}
-                        </div>
-                    </div>
-                    """, unsafe_allow_html=True
-                )
-            st.markdown("<br><br>", unsafe_allow_html=True)
-        else:
-            st.info("왼쪽 사이드바에서 업체를 선택해 주세요.")
-    else:
-        st.error("엑셀 파일을 찾을 수 없습니다. [test.py]와 [고객 사양서.xlsx]가 같은 폴더에 있는지 확인해 주세요.")
+            st.markdown(table_html, unsafe_allow_html=True)
+            st.markdown('<div class="footer-note">※ 기타 수요가 요청사항은 별도 협의에 따른다.</div>', unsafe_allow_html=True)
 
 if __name__ == "__main__":
     main()
