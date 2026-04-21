@@ -10,7 +10,7 @@ st.set_page_config(
     layout="wide"
 )
 
-# 2. 이미지를 웹 표시용으로 변환하는 함수
+# 2. 이미지를 웹 표시용으로 변환하는 함수 (로컬/깃허브 공용)
 @st.cache_data
 def get_image_base64(file_path):
     if not os.path.exists(file_path):
@@ -18,16 +18,14 @@ def get_image_base64(file_path):
     try:
         with open(file_path, "rb") as img_file:
             return base64.b64encode(img_file.read()).decode()
-    except:
+    except Exception:
         return ""
 
-# --- 영어 파일명 고정 ---
+# --- 파일명 설정 (바탕화면에 함께 두시면 됩니다) ---
 LOGO_FILENAME = "hanjin_logo.png" 
-# ----------------------
-
 logo_base64 = get_image_base64(LOGO_FILENAME)
 
-# 3. UI 정밀 조정 CSS
+# 3. UI 디자인 CSS (사용자 요청 사양 정밀 고정)
 st.markdown(f"""
     <style>
     /* 상단 전체 레이아웃 */
@@ -37,18 +35,18 @@ st.markdown(f"""
         padding-top: 10px;
     }}
     
-    /* 로고 크기 및 위치 (좌상단) */
+    /* 로고 크기 및 위치 (좌상단 65px) */
     .brand-logo {{
-        height: 65px; /* 크기 더 확대 */
+        height: 65px; 
         width: auto;
         display: block;
     }}
     
-    /* 품질기술팀 위치 (사용자가 지정한 오른쪽 하단 박스 위치) */
+    /* 품질기술팀 위치 (우측 하단 고정) */
     .team-name-fixed {{
         position: absolute;
         right: 0;
-        bottom: 5px; /* 로고 하단 라인 즈음으로 배치 */
+        bottom: 5px;
         color: rgba(255, 255, 255, 0.6) !important;
         font-size: 14px;
         font-weight: 600;
@@ -83,11 +81,14 @@ st.markdown(f"""
     </style>
     """, unsafe_allow_html=True)
 
-# 4. 데이터 로드 함수 (중복 처리)
+# 4. 데이터 로드 함수 (로컬 바탕화면 및 깃허브 호환)
 @st.cache_data
 def load_data():
+    # 파일명 후보 (사용자님이 사용 중인 파일명 포함)
     file_candidates = ['고객 사양서.xlsx', '고객사양서.xlsx', 'spec.xlsx']
     target_file = None
+    
+    # 현재 실행 경로에서 파일 찾기
     for f in file_candidates:
         if os.path.exists(f):
             target_file = f
@@ -97,17 +98,21 @@ def load_data():
         return None
     
     try:
+        # 엑셀 로드 (엔진 지정으로 호환성 확보)
         df = pd.read_excel(target_file, engine='openpyxl')
+        
+        # 컬럼 및 데이터 정제 (공백 제거)
         df.columns = [c.strip() if isinstance(c, str) else c for c in df.columns]
-        df.iloc[:, 0] = df.iloc[:, 0].astype(str).str.strip()
-        return df.fillna("-")
+        df = df.astype(str).apply(lambda x: x.str.strip())
+        
+        return df.replace('nan', '-')
     except Exception as e:
         st.error(f"데이터 로드 실패: {e}")
         return None
 
-# 5. 메인 로직
+# 5. 메인 실행 로직
 def main():
-    # --- 상단 헤더 영역 구성 ---
+    # --- 헤더 구성 ---
     logo_html = f'<img src="data:image/png;base64,{logo_base64}" class="brand-logo">' if logo_base64 else '<div></div>'
     st.markdown(f"""
         <div class="header-wrapper">
@@ -116,7 +121,6 @@ def main():
         </div>
         """, unsafe_allow_html=True)
 
-    # 메인 제목 (주황색)
     st.markdown('<div class="main-title">📋 고객사양서 관리</div>', unsafe_allow_html=True)
     st.markdown("<hr style='margin: 10px 0; border: 0.5px solid rgba(250,250,250,0.1);'>", unsafe_allow_html=True)
 
@@ -124,24 +128,34 @@ def main():
 
     if df is not None:
         st.sidebar.header("🏢 고객사 목록")
-        # 중복 제거 및 정렬
-        customer_list = sorted(list(set(df.iloc[:, 0].tolist())))
         
-        selected_customer = st.sidebar.radio(
+        # [중복 방지 핵심 로직]
+        # 업체명 리스트 대신 '행 인덱스'를 사용하여 메뉴를 생성합니다.
+        # 에스비엔티(규격A), 에스비엔티(규격B)가 이름이 같더라도 각각 고유하게 인식합니다.
+        row_indices = list(range(len(df)))
+
+        selected_idx = st.sidebar.radio(
             "업체를 선택하세요:",
-            customer_list,
+            row_indices,
+            # 화면에는 엑셀의 첫 번째 열(업체명)만 보여줍니다.
+            format_func=lambda i: df.iloc[i, 0],
             index=None
         )
 
-        if selected_customer:
-            # 선택 업체 필터링
-            row_data = df[df.iloc[:, 0] == selected_customer].iloc[0]
+        if selected_idx is not None:
+            # 선택된 인덱스의 데이터를 정확히 추출 (튕김 현상 없음)
+            row_data = df.iloc[selected_idx]
+            customer_name = row_data.iloc[0]
             
-            st.markdown(f'<div class="customer-title">■ {selected_customer}</div>', unsafe_allow_html=True)
+            st.markdown(f'<div class="customer-title">■ {customer_name}</div>', unsafe_allow_html=True)
             
-            cols = row_data.index[1:]
-            for col_name in cols:
+            # 상세 내용 테이블 출력
+            cols = row_data.index
+            for i in range(1, len(cols)):
+                col_name = cols[i]
                 val = str(row_data[col_name])
+                
+                # 특이사항/주의 등 강조 키워드 체크
                 is_special = any(keyword in str(col_name) for keyword in ["특이사항", "주의", "마킹", "포장"])
                 
                 bg_color = "#F8F9FA" 
@@ -167,11 +181,10 @@ def main():
         else:
             st.info("왼쪽 사이드바에서 업체를 선택해 주세요.")
     else:
-        st.error("엑셀 파일을 찾을 수 없습니다.")
+        st.error("바탕화면에서 엑셀 파일을 찾을 수 없습니다. 파일명을 확인해 주세요.")
 
 if __name__ == "__main__":
     main()
 
-
-
+    
 
