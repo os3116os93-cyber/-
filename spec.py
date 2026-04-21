@@ -3,7 +3,7 @@ import pandas as pd
 import os
 import base64
 
-# 🔥 Streamlit 배포용 안정 경로
+# ✅ 배포 안정 경로
 BASE_DIR = os.getcwd()
 
 # 1. 페이지 설정
@@ -13,20 +13,14 @@ st.set_page_config(
     layout="wide"
 )
 
-# 🔍 디버깅 정보 출력 (문제 원인 확인용)
-st.write("📂 현재 작업 경로:", BASE_DIR)
-st.write("📄 현재 폴더 파일 목록:", os.listdir())
-
-# 2. 로고 이미지
+# 2. 로고 이미지 함수
 def get_image_base64(file_path):
     if not os.path.exists(file_path):
-        st.warning(f"로고 파일 없음: {file_path}")
         return None
     try:
         with open(file_path, "rb") as img_file:
             return base64.b64encode(img_file.read()).decode()
-    except Exception as e:
-        st.error(f"이미지 로드 오류: {e}")
+    except:
         return None
 
 LOGO_FILENAME = os.path.join(BASE_DIR, "hanjin_logo.png")
@@ -75,22 +69,21 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
-# 🔥 데이터 로드 (디버깅 강화)
+# ✅ 데이터 로드 함수 (안정화)
 def load_data(file_name, skip=0):
     file_path = os.path.join(BASE_DIR, file_name)
 
-    st.write(f"📄 로딩 시도: {file_name}")
-    st.write("경로:", file_path)
-    st.write("존재 여부:", os.path.exists(file_path))
+    if not os.path.exists(file_path):
+        st.error(f"파일 없음: {file_name}")
+        return None
 
     try:
         df = pd.read_excel(file_path, skiprows=skip)
-        st.success(f"{file_name} 로드 성공")
         df = df[~df.iloc[:, 0].astype(str).str.contains("※", na=False)]
         return df
     except Exception as e:
-        st.error(f"❌ {file_name} 로드 실패: {e}")
-        raise e
+        st.error(f"{file_name} 로드 오류: {e}")
+        return None
 
 
 def main():
@@ -111,7 +104,7 @@ def main():
 
     tab1, tab2 = st.tabs(["📄 고객 사양서", "⚖️ 품질 보증 기준"])
 
-    # 고객 사양서
+    # ---------------- 고객 사양서 ----------------
     with tab1:
         df_cust = load_data("customer.xlsx")
 
@@ -144,7 +137,7 @@ def main():
                     </div>
                     """, unsafe_allow_html=True)
 
-    # 품질보증 기준
+    # ---------------- 품질 보증 기준 ----------------
     with tab2:
         st.markdown('<div class="customer-title">⚖️ 품질 보증 표준 가이드</div>', unsafe_allow_html=True)
 
@@ -155,17 +148,24 @@ def main():
             row_count = len(df_qc)
 
             all_spans = []
+
             for c in range(col_count):
-                col_data = df_qc.iloc[:, c].astype(str).replace('nan', '').tolist()
+                col_data = df_qc.iloc[:, c].tolist()
 
                 spans = []
                 i = 0
+
                 while i < row_count:
-                    curr = col_data[i].strip()
+                    curr = "" if pd.isna(col_data[i]) else str(col_data[i]).strip()
                     count = 1
 
                     if curr != "":
-                        while i + count < row_count and col_data[i+count].strip() == "":
+                        while i + count < row_count:
+                            next_val = col_data[i+count]
+                            next_val = "" if pd.isna(next_val) else str(next_val).strip()
+
+                            if next_val != "":
+                                break
                             count += 1
 
                     spans.append(count)
@@ -203,5 +203,4 @@ def main():
 
 if __name__ == "__main__":
     main()
-
 
