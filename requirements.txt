@@ -4,4 +4,3 @@ openpyxl
 pymupdf
 qrcode[pil]
 Pillow
-supabase
