@@ -103,6 +103,7 @@ st.markdown("""
     border: 1px solid #DEE2E6;
     table-layout: auto;
     white-space: nowrap;
+    width: 100%;
 }
 .qc-table th {
     padding: clamp(4px, 1.5vw, 8px) clamp(6px, 2vw, 12px);
@@ -112,7 +113,6 @@ st.markdown("""
     background-color: #F8F9FA !important;
     color: #000000 !important;
     font-weight: bold !important;
-    white-space: nowrap;
 }
 .qc-table td {
     padding: clamp(4px, 1.5vw, 8px) clamp(6px, 2vw, 12px);
@@ -121,8 +121,6 @@ st.markdown("""
     vertical-align: middle !important;
     background-color: white !important;
     color: #000000 !important;
-    font-weight: normal !important;
-    white-space: nowrap;
 }
 .footer-note { font-size: 12.5px; color: #666; margin-top: 15px; font-weight: 500; }
 
@@ -234,47 +232,30 @@ def main():
     render_header()
     st.markdown('<div class="main-title">📋 품질 통합 관리 시스템</div>', unsafe_allow_html=True)
 
-    # 탭 구성 업데이트: 제강사 정보 탭 추가 
     tab1, tab2, tab3 = st.tabs(["📄 고객 사양서", "⚖️ 품질 보증 기준", "🏭 제강사 정보"])
 
     with tab1:
         df_cust = load_data(EXCEL_FILE)
-
         if df_cust is not None:
             df_cust = df_cust.dropna(subset=[df_cust.columns[0]])
             for col in df_cust.columns:
                 df_cust[col] = df_cust[col].astype(str).str.strip()
-
             customer_list = df_cust.iloc[:, 0].tolist()
-
             st.sidebar.header("🏢 고객사 목록")
-
             if st.session_state.is_admin:
                 if st.sidebar.button("➕ 고객사 추가", key="open_add_form"):
                     st.session_state.show_add_form = True
                     st.session_state.edit_idx = None
-
-            sel_idx = st.sidebar.radio(
-                "업체를 선택하세요:",
-                options=list(range(len(df_cust))),
-                format_func=lambda i: customer_list[i],
-                index=None,
-                key="customer_radio"
-            )
-
+            sel_idx = st.sidebar.radio("업체를 선택하세요:", options=list(range(len(df_cust))), format_func=lambda i: customer_list[i], index=None, key="customer_radio")
             if sel_idx is None and not st.session_state.show_add_form and st.session_state.edit_idx is None:
                 st.markdown('<div class="guide-text">좌상단 >> 화살표를 눌러 고객사를 선택 하십시오.</div>', unsafe_allow_html=True)
-
             if st.session_state.is_admin and st.session_state.show_add_form:
                 render_add_form(df_cust)
-
             elif st.session_state.is_admin and st.session_state.edit_idx is not None:
                 render_edit_form(df_cust, st.session_state.edit_idx)
-
             elif sel_idx is not None:
                 row = df_cust.iloc[sel_idx]
                 st.markdown(f'<div class="customer-title">■ {row.iloc[0]}</div>', unsafe_allow_html=True)
-
                 if st.session_state.is_admin:
                     a1, a2, _ = st.columns([1, 1, 8])
                     if a1.button("수정", key="edit_btn"):
@@ -283,7 +264,6 @@ def main():
                         st.rerun()
                     if a2.button("삭제", key="delete_btn"):
                         st.session_state[f"confirm_delete_{sel_idx}"] = True
-
                     if st.session_state.get(f"confirm_delete_{sel_idx}", False):
                         st.warning(f"**'{row.iloc[0]}'** 고객사를 정말 삭제하시겠습니까?")
                         d1, d2 = st.columns([1, 5])
@@ -296,7 +276,6 @@ def main():
                         if d2.button("취소", key="cancel_del"):
                             st.session_state[f"confirm_delete_{sel_idx}"] = False
                             st.rerun()
-
                 for i in range(1, len(row.index)):
                     col_n = row.index[i]
                     raw = row.iloc[i]
@@ -309,36 +288,26 @@ def main():
                         <div class="notranslate" translate="no" style="flex: 1; padding: 10px; background-color: white; font-size: 13.5px; line-height: 1.4; color: #212529; font-weight: 500; word-break: break-all;">{val}</div>
                     </div>
                     """, unsafe_allow_html=True)
-
         render_admin_login()
 
     with tab2:
         st.markdown('<div class="customer-title">⚖️ 품질 보증 표준 가이드</div>', unsafe_allow_html=True)
         df_qc = load_data("standard.xlsx", skip=5)
-
         if df_qc is not None:
-            col_count = len(df_qc.columns)
-            row_count = len(df_qc)
+            col_count, row_count = len(df_qc.columns), len(df_qc)
             all_spans = []
             for c in range(col_count):
-                col_data = df_qc.iloc[:, c].fillna('').astype(str).tolist()
-                spans = []
-                i = 0
+                col_data, spans, i = df_qc.iloc[:, c].fillna('').astype(str).tolist(), [], 0
                 while i < row_count:
-                    curr = col_data[i].strip()
-                    count = 1
+                    curr, count = col_data[i].strip(), 1
                     if curr != "":
-                        while i + count < row_count and col_data[i + count].strip() == "":
-                            count += 1
+                        while i + count < row_count and col_data[i + count].strip() == "": count += 1
                     spans.append(count)
-                    for _ in range(count - 1):
-                        spans.append(0)
+                    for _ in range(count - 1): spans.append(0)
                     i += count
                 all_spans.append(spans)
-
             table_html = '<div class="qc-table-wrapper notranslate" translate="no"><table class="qc-table"><thead><tr>'
-            for col in df_qc.columns:
-                table_html += f'<th>{col}</th>'
+            for col in df_qc.columns: table_html += f'<th>{col}</th>'
             table_html += '</tr></thead><tbody>'
             for r in range(row_count):
                 table_html += '<tr>'
@@ -352,11 +321,9 @@ def main():
             st.markdown(table_html, unsafe_allow_html=True)
             st.markdown('<div class="footer-note">※ 기타 수요가 요청사항은 별도 협의에 따른다.</div>', unsafe_allow_html=True)
 
-    # 🏭 제강사 정보 탭 구현 (신규 추가) 
     with tab3:
         st.markdown('<div class="customer-title">🏭 제강사 원산지 분류표</div>', unsafe_allow_html=True)
-        
-        # 제강사 데이터 리스트 (경희.xlsx 내용 기반)
+        # 데이터 정리 (AGS 원산지 및 누락된 PSC 포함)
         mill_data = [
             {"코드": "PSC", "제강사": "포스코", "원산지": "대한민국"},
             {"코드": "HDS", "제강사": "현대제철", "원산지": "대한민국"},
@@ -366,7 +333,7 @@ def main():
             {"코드": "FMS", "제강사": "포모사", "원산지": "베트남"},
             {"코드": "HOA", "제강사": "호아팟", "원산지": "베트남"},
             {"코드": "CHS", "제강사": "중홍", "원산지": "대만"},
-            {"코드": "AGS", "제강사": "안강", "중국": "중국"},
+            {"코드": "AGS", "제강사": "안강", "원산지": "중국"},
             {"코드": "DGH", "제강사": "동화", "원산지": "중국"},
             {"코드": "DSH", "제강사": "딩셩", "원산지": "중국"},
             {"코드": "GUF", "제강사": "국풍", "원산지": "중국"},
@@ -379,37 +346,18 @@ def main():
             {"코드": "ZHJ", "제강사": "자오지엔", "원산지": "중국"},
         ]
         df_mill = pd.DataFrame(mill_data)
-
-        # 모바일/PC 검색창 배치
         search_q = st.text_input("🔍 제강사 명칭 또는 코드 검색", placeholder="예: PSC, 포스코, 중국...", key="mill_search")
-        
         if search_q:
-            df_mill = df_mill[
-                df_mill['코드'].str.contains(search_q, case=False, na=False) | 
-                df_mill['제강사'].str.contains(search_q, case=False, na=False) |
-                df_mill['원산지'].str.contains(search_q, case=False, na=False)
-            ]
+            df_mill = df_mill[df_mill['코드'].str.contains(search_q, case=False, na=False) | df_mill['제강사'].str.contains(search_q, case=False, na=False) | df_mill['원산지'].str.contains(search_q, case=False, na=False)]
 
-        # 기존 스타일 활용 테이블 렌더링 
-        mill_html = '<div class="qc-table-wrapper notranslate" translate="no"><table class="qc-table" style="width:100%;">'
-        mill_html += '<thead><tr><th>코드</th><th>제강사</th><th>원산지</th></tr></thead><tbody>'
-        
+        mill_html = '<div class="qc-table-wrapper notranslate" translate="no"><table class="qc-table"><thead><tr><th>코드</th><th>제강사</th><th>원산지</th></tr></thead><tbody>'
         for _, row in df_mill.iterrows():
-            # 대한민국 제강사는 파란색으로 강조 (선택 사항)
             o_style = 'style="color:#007BFF; font-weight:bold;"' if row['원산지'] == "대한민국" else ""
-            mill_html += f'''
-                <tr>
-                    <td style="font-weight:bold;">{row['코드']}</td>
-                    <td>{row['제강사']}</td>
-                    <td {o_style}>{row['원산지']}</td>
-                </tr>
-            '''
+            mill_html += f'<tr><td style="font-weight:bold;">{row["코드"]}</td><td>{row["제강사"]}</td><td {o_style}>{row["원산지"]}</td></tr>'
         mill_html += '</tbody></table></div>'
-        
         st.markdown(mill_html, unsafe_allow_html=True)
         st.markdown('<div class="footer-note">※ 제강사 정보는 MTC 및 원산지 증명서 확인용으로 사용하십시오.</div>', unsafe_allow_html=True)
 
-
 if __name__ == "__main__":
     main()
-    
+
