@@ -5,12 +5,12 @@ import io
 import requests
 import hashlib
 import os
+import time  # 중복 방지를 위한 시간 모듈 추가
 
-# ── [중요] 페이지 설정은 반드시 최상단에 위치해야 합니다 ─────────────────
+# ── [1] 페이지 설정 ─────────────────────────────────────────────────
 st.set_page_config(page_title="한진철관 품질기술팀 QR 시스템", layout="wide")
 
-# ── Supabase 설정 ─────────────────────────────────────────────────
-# Secrets가 없을 경우를 대비한 안전장치
+# ── [2] Supabase 설정 및 보안 검토 ──────────────────────────────────
 try:
     SUPABASE_URL = st.secrets["SUPABASE_URL"]
     SUPABASE_KEY = st.secrets["SUPABASE_KEY"]
@@ -19,7 +19,10 @@ except Exception:
     st.error("⚠️ Streamlit Secrets에 SUPABASE_URL과 SUPABASE_KEY를 설정해주세요.")
     st.stop()
 
+# ── [3] 유틸리티 함수 ───────────────────────────────────────────────
+
 def upload_to_supabase(png_bytes: bytes, img_key: str) -> tuple[bool, str]:
+    """이미지를 Supabase 스토리지에 업로드합니다."""
     url = f"{SUPABASE_URL}/storage/v1/object/{BUCKET}/{img_key}"
     headers = {
         "apikey": SUPABASE_KEY,
@@ -37,9 +40,11 @@ def upload_to_supabase(png_bytes: bytes, img_key: str) -> tuple[bool, str]:
         return False, str(e)
 
 def get_public_url(img_key: str) -> str:
+    """업로드된 이미지의 공개 URL을 반환합니다."""
     return f"{SUPABASE_URL}/storage/v1/object/public/{BUCKET}/{img_key}"
 
 def make_qr_png(url: str) -> bytes:
+    """URL을 담은 QR 코드 이미지를 생성합니다."""
     qr = qrcode.QRCode(version=1, box_size=10, border=1)
     qr.add_data(url)
     qr.make(fit=True)
@@ -49,6 +54,7 @@ def make_qr_png(url: str) -> bytes:
     return buf.getvalue()
 
 def calc_qr_rect(page_width, page_height, size, position, margin=5, custom_x=0, custom_y=0):
+    """QR 코드가 삽입될 위치(좌표)를 계산합니다."""
     if position == "bottom-right":
         x0, y0 = page_width - size - margin, page_height - size - margin
     elif position == "bottom-left":
@@ -61,7 +67,7 @@ def calc_qr_rect(page_width, page_height, size, position, margin=5, custom_x=0, 
         x0, y0 = custom_x, custom_y
     return fitz.Rect(x0, y0, x0 + size, y0 + size)
 
-# ── 메인 UI ──────────────────────────────────────────────────────
+# ── [4] 메인 UI ──────────────────────────────────────────────────────
 st.title("🛡️ 검사증명서 QR 자동 삽입 도구")
 st.markdown("---")
 
@@ -89,26 +95,24 @@ with st.sidebar:
     auto_save = st.checkbox("처리 후 지정 폴더에 자동 저장")
     save_path = st.text_input("저장 경로", value=os.getcwd())
 
-# ── 파일 업로드 및 처리 ───────────────────────────────────────────
+# ── [5] 파일 업로드 및 처리 로직 ──────────────────────────────────────────
 uploaded_file = st.file_uploader("검사증명서 PDF 파일을 업로드하세요", type="pdf")
 
 if uploaded_file:
-    # PDF 읽기
     pdf_bytes = uploaded_file.read()
     
-    # 미리보기용 섹션
+    # 미리보기 섹션
     st.subheader("🔍 위치 미리보기")
     doc_preview = fitz.open(stream=pdf_bytes, filetype="pdf")
     page = doc_preview[0]
     
-    # 미리보기용 가상 QR 배치
+    # 가상 QR 미리보기 (실제 업로드 X)
     rect = calc_qr_rect(page.rect.width, page.rect.height, qr_size, qr_position, custom_x=c_x, custom_y=c_y)
     qr_preview_bytes = make_qr_png("https://preview.url")
     page.insert_image(rect, stream=qr_preview_bytes)
     
-    # 화면 표시
     pix = page.get_pixmap(dpi=100)
-    st.image(pix.tobytes("png"), caption="첫 페이지 QR 배치 예시", use_container_width=True)
+    st.image(pix.tobytes("png"), caption="첫 페이지 QR 배치 예시 (미리보기)", use_container_width=True)
     doc_preview.close()
 
     if st.button("🚀 모든 페이지에 QR 삽입 실행"):
@@ -122,10 +126,14 @@ if uploaded_file:
             page = doc[i]
             status_text.text(f"처리 중... {i + 1} / {total} 페이지")
 
-            # 1. 이미지화 및 고유 키 생성
+            # 1. 이미지화 및 '완전 고유' 키 생성
+            # time.time()을 추가하여 같은 파일명이라도 업로드할 때마다 다른 이름을 갖게 함
             pix = page.get_pixmap(dpi=dpi)
             png_data = pix.tobytes("png")
-            img_key = hashlib.md5(f"{uploaded_file.name}_{i}".encode()).hexdigest()[:16] + ".png"
+            
+            # 파일명 + 페이지번호 + 나노초 단위 시간을 조합하여 해시 생성
+            unique_seed = f"{uploaded_file.name}_{i}_{time.time_ns()}"
+            img_key = hashlib.md5(unique_seed.encode()).hexdigest()[:20] + ".png"
 
             # 2. Supabase 업로드
             success, err_msg = upload_to_supabase(png_data, img_key)
@@ -134,7 +142,7 @@ if uploaded_file:
                 fail_count += 1
                 continue
 
-            # 3. 실제 QR 생성 및 삽입
+            # 3. 고유 URL을 담은 QR 생성 및 삽입
             qr_url = get_public_url(img_key)
             qr_final_png = make_qr_png(qr_url)
             qr_rect = calc_qr_rect(page.rect.width, page.rect.height, qr_size, qr_position, custom_x=c_x, custom_y=c_y)
@@ -142,24 +150,32 @@ if uploaded_file:
 
             progress_bar.progress((i + 1) / total)
 
-        # 결과물 저장
+        # 결과물 생성
         final_pdf_bytes = doc.write()
         doc.close()
 
         if fail_count == 0:
             st.success("✅ 모든 작업 완료!")
-            st.download_button("📥 QR 완료 PDF 다운로드", data=final_pdf_bytes, file_name=f"QR_{uploaded_file.name}", mime="application/pdf")
+            st.download_button(
+                label="📥 QR 완료 PDF 다운로드",
+                data=final_pdf_bytes,
+                file_name=f"QR_{uploaded_file.name}",
+                mime="application/pdf"
+            )
             
             if auto_save:
                 try:
-                    if not os.path.exists(save_path): os.makedirs(save_path)
+                    if not os.path.exists(save_path): 
+                        os.makedirs(save_path)
                     f_path = os.path.join(save_path, f"QR_{uploaded_file.name}")
-                    with open(f_path, "wb") as f: f.write(final_pdf_bytes)
+                    with open(f_path, "wb") as f: 
+                        f.write(final_pdf_bytes)
                     st.info(f"📂 로컬 저장 완료: {f_path}")
                 except Exception as e:
                     st.error(f"로컬 저장 중 오류: {e}")
         else:
-            st.warning(f"⚠️ {fail_count}개 페이지 처리 중 오류 발생")
+            st.warning(f"⚠️ {fail_count}개 페이지 처리 중 오류 발생. 인터넷 연결을 확인하세요.")
 
 st.markdown("---")
-st.caption("품질기술팀 내부 업무용 | PyMuPDF & Streamlit")
+st.caption("품질기술팀 내부 업무용 시스템 | PyMuPDF & Streamlit")
+
