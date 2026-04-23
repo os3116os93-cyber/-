@@ -125,15 +125,25 @@ st.markdown("""
     white-space: nowrap;
 }
 .footer-note { font-size: 12.5px; color: #666; margin-top: 15px; font-weight: 500; }
+
+/* 📱 모바일에서만 보이게 하는 CSS 설정 */
 .guide-text {
-    font-size: 16px;
-    font-weight: bold;
-    color: #333;
-    margin: 20px 0;
-    padding: 20px;
-    background-color: #f8f9fa;
-    border-radius: 10px;
-    border-left: 5px solid #FF8C00;
+    display: none; /* 기본 숨김 (PC) */
+}
+
+@media (max-width: 768px) {
+    .guide-text {
+        display: block; /* 768px 이하 모바일에서만 표시 */
+        font-size: 15px;
+        font-weight: bold;
+        color: #333;
+        margin: 15px 0;
+        padding: 15px;
+        background-color: #fff4e6;
+        border-radius: 8px;
+        border-left: 5px solid #FF8C00;
+        line-height: 1.4;
+    }
 }
 </style>
 """, unsafe_allow_html=True)
@@ -252,7 +262,8 @@ def main():
                 key="customer_radio"
             )
 
-            # ── [수정 및 재검토] 고객사를 선택하지 않았을 때만 문구 노출 ──────────
+            # ── [조건 검토] 고객사를 선택하지 않았을 때만 가이드 노출 ─────────────────
+            # (추가/수정 폼이 열려있지 않고, 아무 업체도 선택되지 않은 초기 상태)
             if sel_idx is None and not st.session_state.show_add_form and st.session_state.edit_idx is None:
                 st.markdown('<div class="guide-text">좌상단 >> 화살표를 눌러 고객사를 선택 하십시오.</div>', unsafe_allow_html=True)
             # ────────────────────────────────────────────────────────────────────────
