@@ -70,8 +70,10 @@ with st.sidebar:
     dpi     = st.slider("이미지 해상도 (DPI)", min_value=72, max_value=300, value=300, step=1,
                         help="높을수록 선명하나 처리 시간 증가")
 
-def calc_qr_position(page_width: float, page_height: float, size: int, position: str, margin: int = 15):
-    """QR 코드 삽입 좌표 계산 (fitz.Rect 기준)"""
+def calc_qr_position(page_width: float, page_height: float, size: int, position: str, margin: int = 5):
+    """QR 코드 삽입 좌표 계산 (fitz.Rect 기준)
+    margin을 5로 설정해 모서리에 최대한 가깝게 배치
+    """
     if position == "bottom-right":
         x0 = page_width  - size - margin
         y0 = page_height - size - margin
@@ -116,7 +118,7 @@ if uploaded_file:
             fail_count += 1
             continue
 
-        # 4. QR 코드 생성
+        # 4. QR 코드 생성 (APP_URL/?view=img_key 형태)
         qr_url = f"{APP_URL}/?view={img_key}"
         qr = qrcode.QRCode(
             version=1,
