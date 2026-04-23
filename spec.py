@@ -125,6 +125,13 @@ st.markdown("""
     white-space: nowrap;
 }
 .footer-note { font-size: 12.5px; color: #666; margin-top: 15px; font-weight: 500; }
+/* 추가된 안내 문구 스타일 */
+.guide-text {
+    font-size: 16px;
+    font-weight: bold;
+    color: #333;
+    margin: 10px 0 20px 0;
+}
 </style>
 """, unsafe_allow_html=True)
 
@@ -218,6 +225,10 @@ def main():
     tab1, tab2 = st.tabs(["📄 고객 사양서", "⚖️ 품질 보증 기준"])
 
     with tab1:
+        # ── [수정 부분] 고객 사양서 탭 상단에 안내 문구 삽입 ──────────────────────
+        st.markdown('<div class="guide-text">좌상단 >> 화살표를 눌러 고객사를 선택 하십시오.</div>', unsafe_allow_html=True)
+        # ────────────────────────────────────────────────────────────────────────
+        
         df_cust = load_data(EXCEL_FILE)
 
         if df_cust is not None:
@@ -332,3 +343,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+    
