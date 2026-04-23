@@ -11,7 +11,6 @@ st.set_page_config(page_title="한진철관 품질기술팀 QR 시스템", layou
 # ── Supabase 설정 ─────────────────────────────────────────────────
 SUPABASE_URL = st.secrets["SUPABASE_URL"]
 SUPABASE_KEY = st.secrets["SUPABASE_KEY"]
-APP_URL      = st.secrets["APP_URL"].rstrip("/")
 BUCKET       = "cert-images"
 
 def upload_to_supabase(png_bytes: bytes, img_key: str) -> tuple[bool, str]:
@@ -38,27 +37,9 @@ def upload_to_supabase(png_bytes: bytes, img_key: str) -> tuple[bool, str]:
         return False, str(e)
 
 def get_public_url(img_key: str) -> str:
-    """Supabase Storage 공개 URL 반환"""
+    """Supabase Storage 공개 URL 반환 — QR 스캔 시 이미지 직접 열림"""
     return f"{SUPABASE_URL}/storage/v1/object/public/{BUCKET}/{img_key}"
 
-# ── 이미지 뷰어 페이지 (?view=key 파라미터) ───────────────────────
-query_params = st.query_params
-if "view" in query_params:
-    img_key = query_params["view"]
-    img_url = get_public_url(img_key)
-    st.markdown(
-        f"""
-        <div style='text-align:center; padding: 10px;'>
-            <img src='{img_url}'
-                 style='max-width:100%; border:1px solid #ddd; border-radius:8px;'/>
-            <p style='color:gray; margin-top:10px; font-size:13px;'>
-                한진철관 품질기술팀 검사증명서
-            </p>
-        </div>
-        """,
-        unsafe_allow_html=True,
-    )
-    st.stop()
 
 # ── 메인 화면 ─────────────────────────────────────────────────────
 st.title("🛡️ 검사증명서 QR 자동 삽입 도구")
@@ -123,9 +104,9 @@ def make_qr_png(url: str) -> bytes:
 uploaded_file = st.file_uploader("검사증명서 PDF 파일을 업로드하세요", type="pdf")
 
 if uploaded_file:
-    pdf_bytes = uploaded_file.read()  # 변수명을 pdf_bytes로 명확히 구분
-    doc        = fitz.open(stream=pdf_bytes, filetype="pdf")
-    total      = len(doc)
+    pdf_bytes = uploaded_file.read()
+    doc       = fitz.open(stream=pdf_bytes, filetype="pdf")
+    total     = len(doc)
 
     progress_bar = st.progress(0)
     status_text  = st.empty()
@@ -137,7 +118,7 @@ if uploaded_file:
 
         # 1. 페이지 → PNG bytes 변환
         pix      = page.get_pixmap(dpi=dpi)
-        png_data = pix.tobytes("png")  # img_bytes → png_data 로 명확히
+        png_data = pix.tobytes("png")
 
         # 2. 고유 파일명 생성 (파일명 + 페이지 번호 기반 MD5)
         raw_key = f"{uploaded_file.name}_page{i}"
@@ -150,8 +131,8 @@ if uploaded_file:
             fail_count += 1
             continue
 
-        # 4. QR 코드 생성
-        qr_url = f"{APP_URL}/?view={img_key}"
+        # 4. QR 코드 생성 — Supabase 이미지 URL 직접 삽입 (스캔 시 이미지 바로 열림)
+        qr_url = get_public_url(img_key)
         qr_png = make_qr_png(qr_url)
 
         # 5. PDF 페이지에 QR 삽입
