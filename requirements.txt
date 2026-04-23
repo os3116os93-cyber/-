@@ -4,3 +4,4 @@ openpyxl
 pymupdf
 qrcode[pil]
 Pillow
+requests
