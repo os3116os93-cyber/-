@@ -1,9 +1,4 @@
-import streamlit as st
-import fitz  # PyMuPDF
-import qrcode
-import io
-import hashlib
-import requests
+
 
 # ── 페이지 설정 ───────────────────────────────────────────────────
 st.set_page_config(page_title="한진철관 품질기술팀 QR 시스템", layout="centered")
