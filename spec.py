@@ -14,7 +14,7 @@ st.set_page_config(
     layout="wide"
 )
 
-@st.cache_data
+@st.cache_data(ttl=300)  # ✅ 5분마다 자동 갱신 (기존: 영구 캐시)
 def get_image_base64(file_path):
     if not os.path.exists(file_path):
         return None
@@ -92,7 +92,7 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 
-@st.cache_data
+@st.cache_data(ttl=300)  # ✅ 5분마다 자동 갱신 (기존: 영구 캐시)
 def load_data(file_name, skip=0):
     file_path = os.path.join(BASE_DIR, file_name)
     if not os.path.exists(file_path):
@@ -124,7 +124,7 @@ def main():
 
     tab1, tab2 = st.tabs(["📄 고객 사양서", "⚖️ 품질 보증 기준"])
 
-    # ── 고객 사양서: 원안 그대로 ──
+    # ── 고객 사양서 ──
     with tab1:
         df_cust = load_data("customer.xlsx")
 
@@ -150,7 +150,11 @@ def main():
 
                 for i in range(1, len(row.index)):
                     col_n = row.index[i]
-                    val = str(row.iloc[i])
+
+                    # ✅ nan 방어 처리 (기존: nan 문자열 그대로 표시되던 문제 수정)
+                    raw = row.iloc[i]
+                    val = str(raw).strip() if pd.notna(raw) and str(raw).strip() not in ("", "nan") else "-"
+
                     is_sp = any(k in str(col_n) for k in ["특이사항", "주의", "마킹", "포장"])
                     c = "#E63946" if is_sp else "#495057"
 
@@ -161,7 +165,7 @@ def main():
                     </div>
                     """, unsafe_allow_html=True)
 
-    # ── 품질보증 기준: 모바일 최적화 ──
+    # ── 품질보증 기준 ──
     with tab2:
         st.markdown('<div class="customer-title">⚖️ 품질 보증 표준 가이드</div>', unsafe_allow_html=True)
 
@@ -211,5 +215,5 @@ def main():
 if __name__ == "__main__":
     main()
 
-    
+
     
