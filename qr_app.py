@@ -50,6 +50,43 @@ if "view" in query_params:
 st.title("🛡️ 검사증명서 QR 자동 삽입 도구")
 st.markdown("---")
 
+# ── 사이드바: QR 삽입 옵션 ────────────────────────────────────────
+with st.sidebar:
+    st.header("⚙️ QR 삽입 옵션")
+
+    qr_position = st.selectbox(
+        "QR 코드 위치",
+        options=["bottom-right", "bottom-left", "top-right", "top-left"],
+        format_func=lambda x: {
+            "bottom-right": "우하단 ↘ (기본)",
+            "bottom-left":  "좌하단 ↙",
+            "top-right":    "우상단 ↗",
+            "top-left":     "좌상단 ↖",
+        }[x],
+        index=0,
+    )
+
+    qr_size = st.slider("QR 코드 크기 (pt)", min_value=40, max_value=100, value=55, step=5)
+    dpi     = st.slider("이미지 해상도 (DPI)", min_value=72, max_value=300, value=300, step=1,
+                        help="높을수록 선명하나 처리 시간 증가")
+
+def calc_qr_position(page_width: float, page_height: float, size: int, position: str, margin: int = 15):
+    """QR 코드 삽입 좌표 계산 (fitz.Rect 기준)"""
+    if position == "bottom-right":
+        x0 = page_width  - size - margin
+        y0 = page_height - size - margin
+    elif position == "bottom-left":
+        x0 = margin
+        y0 = page_height - size - margin
+    elif position == "top-right":
+        x0 = page_width  - size - margin
+        y0 = margin
+    else:  # top-left
+        x0 = margin
+        y0 = margin
+    return fitz.Rect(x0, y0, x0 + size, y0 + size)
+
+# ── 파일 업로드 ───────────────────────────────────────────────────
 uploaded_file = st.file_uploader("검사증명서 PDF 파일을 업로드하세요", type="pdf")
 
 if uploaded_file:
@@ -64,8 +101,8 @@ if uploaded_file:
         page = doc[i]
         status_text.text(f"처리 중... {i + 1} / {len(doc)} 페이지")
 
-        # 1. 페이지 → PNG 이미지 변환 (300dpi)
-        pix       = page.get_pixmap(dpi=300)
+        # 1. 페이지 → PNG 이미지 변환
+        pix       = page.get_pixmap(dpi=dpi)
         img_bytes = pix.tobytes("png")
 
         # 2. 고유 파일명 생성
@@ -95,16 +132,12 @@ if uploaded_file:
         qr_io = io.BytesIO()
         qr_img.save(qr_io, format="PNG")
 
-        # 6. PDF에 QR 삽입 (우측 하단)
-        page_width  = page.rect.width
-        page_height = page.rect.height
-        qr_size     = 55
-        x0 = page_width  - 85
-        y0 = page_height - 140
-        x1 = x0 + qr_size
-        y1 = y0 + qr_size
-
-        qr_rect = fitz.Rect(x0, y0, x1, y1)
+        # 6. PDF에 QR 삽입 (위치 옵션 반영)
+        qr_rect = calc_qr_position(
+            page.rect.width, page.rect.height,
+            size=qr_size,
+            position=qr_position,
+        )
         page.insert_image(qr_rect, stream=qr_io.getvalue(), overlay=True)
 
         progress_bar.progress((i + 1) / len(doc))
@@ -131,3 +164,4 @@ if uploaded_file:
 # 하단 정보
 st.markdown("---")
 st.caption("품질기술팀 내부 업무용 자동화 도구 | PyMuPDF & Streamlit & Supabase 기반")
+
