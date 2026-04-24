@@ -356,7 +356,7 @@ def main():
             mill_html += f'<tr><td style="font-weight:bold;">{row["코드"]}</td><td>{row["제강사"]}</td><td {o_style}>{row["원산지"]}</td></tr>'
         mill_html += '</tbody></table></div>'
         st.markdown(mill_html, unsafe_allow_html=True)
-        st.markdown('<div class="footer-note">※ 제강사 정보는 MTC 및 원산지 증명서 확인용으로 사용하십시오.</div>', unsafe_allow_html=True)
+        st.markdown('<div class="footer-note">※ 제강사 정보는 검색으로 손쉬운 확인이 가능합니다.</div>', unsafe_allow_html=True)
 
 if __name__ == "__main__":
     main()
