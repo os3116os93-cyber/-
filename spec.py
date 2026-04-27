@@ -76,7 +76,7 @@ def load_customer_data():
 
 @st.cache_data(ttl=300)
 def load_standard_data():
-    """standard.xlsx 로컬 파일 로드 (품질보증 기준은 그대로 유지)"""
+    """standard.xlsx 로컬 파일 로드"""
     file_path = os.path.join(BASE_DIR, "standard.xlsx")
     if not os.path.exists(file_path):
         st.error(f"파일을 찾을 수 없습니다: standard.xlsx")
@@ -95,7 +95,6 @@ def save_to_gsheet(df):
     try:
         sheet = get_gsheet()
         sheet.clear()
-        # 헤더 + 데이터 업로드
         values = [df.columns.tolist()] + df.fillna("").values.tolist()
         sheet.update(values)
         load_customer_data.clear()
@@ -180,7 +179,7 @@ def render_header():
     if logo_base64:
         logo_img_html = f"<img src=data:image/png;base64,{logo_base64} class=brand-logo>"
     else:
-        logo_img_html = "<div style=color:#ccc; font-size:12px;>[한진철관 로고 미검출]</div>"
+        logo_img_html = "<div style=color:#ccc; font-size:12px;>[로고 미검출]</div>"
     admin_badge = "<span class=admin-badge>🔓 관리자 모드</span>" if st.session_state.is_admin else ""
     st.markdown(f"""
     <div class="header-wrapper">
@@ -262,14 +261,13 @@ def main():
     render_header()
     st.markdown("<div class=main-title>📋 품질 통합 관리 시스템</div>", unsafe_allow_html=True)
 
-    tab1, tab2, tab3 = st.tabs(["📄 고객 사양서", "⚖️ 품질 보증 기준", "🏭 제강사 정보"])
+    # 탭 정의 수정: 3개의 탭 변수를 생성합니다.
+    tab1, tab2, tab3 = st.tabs(["📄 고객 사양서", "⚖️ 품질 보증 기준", "🏭 제강사 분류"])
 
     with tab1:
         df_cust = load_customer_data()
-
         if df_cust is not None and not df_cust.empty:
             customer_list = df_cust.iloc[:, 0].tolist()
-
             st.sidebar.header("🏢 고객사 목록")
 
             if st.session_state.is_admin:
@@ -287,10 +285,8 @@ def main():
 
             if st.session_state.is_admin and st.session_state.show_add_form:
                 render_add_form(df_cust)
-
             elif st.session_state.is_admin and st.session_state.edit_idx is not None:
                 render_edit_form(df_cust, st.session_state.edit_idx)
-
             elif sel_idx is not None:
                 row = df_cust.iloc[sel_idx]
                 st.markdown(f"<div class=customer-title>■ {row.iloc[0]}</div>", unsafe_allow_html=True)
@@ -335,7 +331,6 @@ def main():
     with tab2:
         st.markdown("<div class=customer-title>⚖️ 품질 보증 표준 가이드</div>", unsafe_allow_html=True)
         df_qc = load_standard_data()
-
         if df_qc is not None:
             col_count = len(df_qc.columns)
             row_count = len(df_qc)
@@ -372,7 +367,7 @@ def main():
             st.markdown(table_html, unsafe_allow_html=True)
             st.markdown("<div class=footer-note>※ 기타 수요가 요청사항은 별도 협의에 따른다.</div>", unsafe_allow_html=True)
 
-with tab3:
+    with tab3:
         st.markdown('<div class="customer-title">🏭 제강사 원산지 분류표</div>', unsafe_allow_html=True)
         mill_data = [
             {"코드": "PSC", "제강사": "포스코", "원산지": "대한민국"},
@@ -387,7 +382,7 @@ with tab3:
             {"코드": "CHS", "제강사": "중홍", "원산지": "대만"},
             {"코드": "ANF", "제강사": "안펑", "원산지": "중국"},
             {"코드": "BAO", "제강사": "포두", "원산지": "중국"},
-            {"코드": "JYE", "제강사": "징예", "중국": "중국"},
+            {"코드": "JYE", "제강사": "징예", "원산지": "중국"},
             {"코드": "RSC", "제강사": "일조강철", "원산지": "중국"},
             {"코드": "AGS", "제강사": "안강", "원산지": "중국"},
             {"코드": "DGH", "제강사": "동화", "원산지": "중국"},
@@ -410,7 +405,9 @@ with tab3:
         df_mill = pd.DataFrame(mill_data)
         search_q = st.text_input("🔍 제강사 명칭 또는 코드 검색", placeholder="예: PSC, 포스코, 중국...", key="mill_search")
         if search_q:
-            df_mill = df_mill[df_mill['코드'].str.contains(search_q, case=False, na=False) | df_mill['제강사'].str.contains(search_q, case=False, na=False) | df_mill['원산지'].str.contains(search_q, case=False, na=False)]
+            df_mill = df_mill[df_mill['코드'].str.contains(search_q, case=False, na=False) | 
+                              df_mill['제강사'].str.contains(search_q, case=False, na=False) | 
+                              df_mill['원산지'].str.contains(search_q, case=False, na=False)]
 
         mill_html = '<div class="qc-table-wrapper notranslate" translate="no"><table class="qc-table"><thead><tr><th>코드</th><th>제강사</th><th>원산지</th></tr></thead><tbody>'
         for _, row in df_mill.iterrows():
@@ -423,4 +420,3 @@ with tab3:
 if __name__ == "__main__":
     main()
 
-    
