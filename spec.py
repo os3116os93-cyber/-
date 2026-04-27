@@ -372,6 +372,55 @@ def main():
             st.markdown(table_html, unsafe_allow_html=True)
             st.markdown("<div class=footer-note>※ 기타 수요가 요청사항은 별도 협의에 따른다.</div>", unsafe_allow_html=True)
 
+with tab3:
+        st.markdown('<div class="customer-title">🏭 제강사 원산지 분류표</div>', unsafe_allow_html=True)
+        mill_data = [
+            {"코드": "PSC", "제강사": "포스코", "원산지": "대한민국"},
+            {"코드": "HDS", "제강사": "현대제철", "원산지": "대한민국"},
+            {"코드": "DBS", "제강사": "동부제철", "원산지": "대한민국"},
+            {"코드": "DKS", "제강사": "동국씨엠", "원산지": "대한민국"},
+            {"코드": "SEAH", "제강사": "세아씨엠", "원산지": "대한민국"},
+            {"코드": "TKS", "제강사": "도쿄", "원산지": "일본"},
+            {"코드": "NSC", "제강사": "닛테츠", "원산지": "일본"},
+            {"코드": "FMS", "제강사": "포모사", "원산지": "베트남"},
+            {"코드": "HOA", "제강사": "호아팟", "원산지": "베트남"},
+            {"코드": "CHS", "제강사": "중홍", "원산지": "대만"},
+            {"코드": "ANF", "제강사": "안펑", "원산지": "중국"},
+            {"코드": "BAO", "제강사": "포두", "원산지": "중국"},
+            {"코드": "JYE", "제강사": "징예", "중국": "중국"},
+            {"코드": "RSC", "제강사": "일조강철", "원산지": "중국"},
+            {"코드": "AGS", "제강사": "안강", "원산지": "중국"},
+            {"코드": "DGH", "제강사": "동화", "원산지": "중국"},
+            {"코드": "DSH", "제강사": "딩셩", "원산지": "중국"},
+            {"코드": "GUF", "제강사": "국풍", "원산지": "중국"},
+            {"코드": "HAN", "제강사": "한단", "원산지": "중국"},
+            {"코드": "JER", "제강사": "지룬", "원산지": "중국"},
+            {"코드": "MSH", "제강사": "보산", "원산지": "중국"},
+            {"코드": "SDG", "제강사": "산동", "원산지": "중국"},
+            {"코드": "SDS", "제강사": "승덕", "원산지": "중국"},
+            {"코드": "SGS", "제강사": "수도", "원산지": "중국"},
+            {"코드": "ZHJ", "제강사": "조건", "원산지": "중국"},
+            {"코드": "KGM", "제강사": "카이징", "원산지": "중국"},
+            {"코드": "LYN", "제강사": "롄강", "원산지": "중국"},
+            {"코드": "NTS", "제강사": "신청강", "원산지": "중국"},
+            {"코드": "TNT", "제강사": "천철", "원산지": "중국"},
+            {"코드": "TSS", "제강사": "당산강철", "원산지": "중국"},
+            {"코드": "YAN", "제강사": "연산강철", "원산지": "중국"},
+        ]
+        df_mill = pd.DataFrame(mill_data)
+        search_q = st.text_input("🔍 제강사 명칭 또는 코드 검색", placeholder="예: PSC, 포스코, 중국...", key="mill_search")
+        if search_q:
+            df_mill = df_mill[df_mill['코드'].str.contains(search_q, case=False, na=False) | df_mill['제강사'].str.contains(search_q, case=False, na=False) | df_mill['원산지'].str.contains(search_q, case=False, na=False)]
+
+        mill_html = '<div class="qc-table-wrapper notranslate" translate="no"><table class="qc-table"><thead><tr><th>코드</th><th>제강사</th><th>원산지</th></tr></thead><tbody>'
+        for _, row in df_mill.iterrows():
+            o_style = 'style="color:#007BFF; font-weight:bold;"' if row['원산지'] == "대한민국" else ""
+            mill_html += f'<tr><td style="font-weight:bold;">{row["코드"]}</td><td>{row["제강사"]}</td><td {o_style}>{row["원산지"]}</td></tr>'
+        mill_html += '</tbody></table></div>'
+        st.markdown(mill_html, unsafe_allow_html=True)
+        st.markdown('<div class="footer-note">※ 제강사 정보는 검색으로 손쉬운 확인이 가능합니다.</div>', unsafe_allow_html=True)
 
 if __name__ == "__main__":
     main()
+
+    
