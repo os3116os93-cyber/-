@@ -292,16 +292,35 @@ def main():
 
     with tab2:
         st.markdown('<div class="customer-title">⚖️ 품질 보증 표준 가이드</div>', unsafe_allow_html=True)
-        
-        # --- 수정된 부분: HTML 테이블 대신 '기준.png' 이미지 표시 ---
-        img_path = os.path.join(BASE_DIR, "기준.png")
-        if os.path.exists(img_path):
-            st.image(img_path, use_container_width=True)
-        else:
-            st.warning("⚠️ '기준.png' 파일을 찾을 수 없습니다. 깃허브에 이미지 파일이 업로드되었는지 확인해주세요.")
-        # --------------------------------------------------------
-            
-        st.markdown('<div class="footer-note">※ 기타 수요가 요청사항은 별도 협의에 따른다.</div>', unsafe_allow_html=True)
+        # --- 원본 코드의 엑셀 데이터 기반 테이블 생성 로직 복구 ---
+        df_qc = load_data("standard.xlsx", skip=5)
+        if df_qc is not None:
+            col_count, row_count = len(df_qc.columns), len(df_qc)
+            all_spans = []
+            for c in range(col_count):
+                col_data, spans, i = df_qc.iloc[:, c].fillna('').astype(str).tolist(), [], 0
+                while i < row_count:
+                    curr, count = col_data[i].strip(), 1
+                    if curr != "":
+                        while i + count < row_count and col_data[i + count].strip() == "": count += 1
+                    spans.append(count)
+                    for _ in range(count - 1): spans.append(0)
+                    i += count
+                all_spans.append(spans)
+            table_html = '<div class="qc-table-wrapper notranslate" translate="no"><table class="qc-table"><thead><tr>'
+            for col in df_qc.columns: table_html += f'<th>{col}</th>'
+            table_html += '</tr></thead><tbody>'
+            for r in range(row_count):
+                table_html += '<tr>'
+                for c in range(col_count):
+                    span_val = all_spans[c][r]
+                    if span_val > 0:
+                        cell_content = str(df_qc.iloc[r, c]).replace("nan", "").replace("(", "<br>(")
+                        table_html += f'<td rowspan="{span_val}">{cell_content}</td>'
+                table_html += '</tr>'
+            table_html += '</tbody></table></div>'
+            st.markdown(table_html, unsafe_allow_html=True)
+            st.markdown('<div class="footer-note">※ 기타 수요가 요청사항은 별도 협의에 따른다.</div>', unsafe_allow_html=True)
 
     with tab3:
         st.markdown('<div class="customer-title">🏭 제강사 원산지 분류표</div>', unsafe_allow_html=True)
