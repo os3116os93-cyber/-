@@ -296,59 +296,68 @@ def main():
         if df_qc is not None:
             df_qc = df_qc.fillna('').astype(str)
             col_count, row_count = len(df_qc.columns), len(df_qc)
-            all_spans = []
             
-            # 병합 로직 최적화
-            for c in range(col_count):
-                col_data = df_qc.iloc[:, c].tolist()
-                item_col = df_qc.iloc[:, 1].tolist()
-                spans = []
-                i = 0
-                while i < row_count:
-                    curr = col_data[i].strip()
-                    count = 1
-                    
-                    # 구분(첫 번째 열) 병합 제어
-                    if c == 0:
-                        if curr == "용접" or curr == "":
-                            while i + count < row_count:
-                                # 항목 열의 텍스트가 '외경'이면 무조건 용접 병합 종료
-                                if "외경" in item_col[i + count]:
-                                    break
-                                if col_data[i + count].strip() == "":
-                                    count += 1
-                                else:
-                                    break
-                        elif curr == "치수":
-                            while i + count < row_count and col_data[i + count].strip() == "":
-                                count += 1
-                    else:
-                        if curr != "":
-                            while i + count < row_count and col_data[i + count].strip() == "":
-                                count += 1
-                                
-                    spans.append(count)
-                    for _ in range(count - 1): spans.append(0)
-                    i += count
-                all_spans.append(spans)
-
+            # [구분] 열(index 0)의 병합 위치를 고정하기 위한 인덱스 찾기
+            outer_idx = -1
+            for r_idx in range(row_count):
+                if "외경" in df_qc.iloc[r_idx, 1]:
+                    outer_idx = r_idx
+                    break
+            
             table_html = '<div class="qc-table-wrapper notranslate" translate="no"><table class="qc-table"><thead><tr>'
             for col in df_qc.columns: table_html += f'<th>{col}</th>'
             table_html += '</tr></thead><tbody>'
+            
             for r in range(row_count):
                 table_html += '<tr>'
                 for c in range(col_count):
-                    span_val = all_spans[c][r]
-                    if span_val > 0:
-                        cell_content = df_qc.iloc[r, c].strip()
+                    # --- [구분] 열(첫 번째 열) 강제 3단 병합 로직 ---
+                    if c == 0:
+                        if r == 0: # 겉모양: 1행~2행
+                            table_html += f'<td rowspan="2" style="font-weight:bold;">겉모양</td>'
+                        elif r == 2: # 용접: 3행~외경 전까지
+                            if outer_idx > 2:
+                                table_html += f'<td rowspan="{outer_idx - 2}" style="font-weight:bold;">용접</td>'
+                        elif r == outer_idx: # 치수: 외경행 ~ 끝까지
+                            table_html += f'<td rowspan="{row_count - outer_idx}" style="font-weight:bold;">치수</td>'
+                        else:
+                            continue # 병합된 셀들은 건너뜀
+                    
+                    # --- 나머지 열: 기존 병합 로직 유지 (데이터 보존) ---
+                    else:
+                        curr_val = df_qc.iloc[r, c].strip()
+                        # 이미 위 셀에서 병합되어 내려온 빈 셀인지 확인
+                        if r > 0 and curr_val == "":
+                            # 이 칸이 병합에 의해 가려지는 칸인지 계산
+                            # (단순 빈칸이 아니라, 이전 행에서 이미 rowspan이 적용된 경우 건너뛰기)
+                            is_merged = False
+                            for prev_r in range(r-1, -1, -1):
+                                prev_val = df_qc.iloc[prev_r, c].strip()
+                                if prev_val != "":
+                                    # 위쪽의 데이터가 있는 셀에서 여기까지 rowspan이 오는지 확인
+                                    count_check = 1
+                                    for scan_r in range(prev_r + 1, row_count):
+                                        if df_qc.iloc[scan_r, c].strip() == "": count_check += 1
+                                        else: break
+                                    if prev_r + count_check > r:
+                                        is_merged = True
+                                    break
+                            if is_merged: continue
+
+                        # 현재 셀부터 아래로 몇 개의 빈 셀이 있는지 계산 (rowspan 결정)
+                        count = 1
+                        if curr_val != "":
+                            for next_r in range(r + 1, row_count):
+                                if df_qc.iloc[next_r, c].strip() == "": count += 1
+                                else: break
                         
-                        # 외경 행의 구분 열이 비어있을 때 강제로 '치수' 주입
-                        if c == 0 and "외경" in df_qc.iloc[r, 1] and cell_content == "":
-                             cell_content = "치수"
-                        
-                        cell_content = cell_content.replace("(", "<br>(")
-                        table_html += f'<td rowspan="{span_val}">{cell_content}</td>'
+                        # [오류 방지] 항목 열(c=1)에서 용접 범위의 빈칸이 치수 영역(외경)을 침범하지 않게 제한
+                        if c == 1 and r < outer_idx and r + count > outer_idx:
+                            count = outer_idx - r
+                            
+                        table_html += f'<td rowspan="{count}">{curr_val.replace("(", "<br>(")}</td>'
                 table_html += '</tr>'
+            
             table_html += '</tbody></table></div>'
             st.markdown(table_html, unsafe_allow_html=True)
             st.markdown('<div class="footer-note">※ 기타 수요가 요청사항은 별도 협의에 따른다.</div>', unsafe_allow_html=True)
@@ -403,5 +412,4 @@ def main():
 
 if __name__ == "__main__":
     main()
-
 
