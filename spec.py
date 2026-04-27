@@ -297,7 +297,7 @@ def main():
             df_qc = df_qc.fillna('').astype(str)
             col_count, row_count = len(df_qc.columns), len(df_qc)
             
-            # [구분] 열(index 0)의 병합 위치를 고정하기 위한 인덱스 찾기
+            # [수정] 구분 열 병합 위치를 찾기 위한 인덱스 계산 (외경이 포함된 행 찾기)
             outer_idx = -1
             for r_idx in range(row_count):
                 if "외경" in df_qc.iloc[r_idx, 1]:
@@ -311,30 +311,27 @@ def main():
             for r in range(row_count):
                 table_html += '<tr>'
                 for c in range(col_count):
-                    # --- [구분] 열(첫 번째 열) 강제 3단 병합 로직 ---
+                    # --- [핵심 수정] 구분 열(index 0) 3단계 강제 병합 ---
                     if c == 0:
-                        if r == 0: # 겉모양: 1행~2행
+                        if r == 0: # 겉모양 (1~2행)
                             table_html += f'<td rowspan="2" style="font-weight:bold;">겉모양</td>'
-                        elif r == 2: # 용접: 3행~외경 전까지
+                        elif r == 2: # 용접 (3행~외경 전까지)
                             if outer_idx > 2:
                                 table_html += f'<td rowspan="{outer_idx - 2}" style="font-weight:bold;">용접</td>'
-                        elif r == outer_idx: # 치수: 외경행 ~ 끝까지
+                        elif r == outer_idx: # 치수 (외경행~끝까지)
                             table_html += f'<td rowspan="{row_count - outer_idx}" style="font-weight:bold;">치수</td>'
                         else:
                             continue # 병합된 셀들은 건너뜀
                     
-                    # --- 나머지 열: 기존 병합 로직 유지 (데이터 보존) ---
+                    # --- 나머지 열 데이터 처리 (원본 병합 로직 기반 보완) ---
                     else:
                         curr_val = df_qc.iloc[r, c].strip()
-                        # 이미 위 셀에서 병합되어 내려온 빈 셀인지 확인
+                        # 빈 셀인 경우 위에서 이미 병합되었는지 체크하여 중복 생성 방지
                         if r > 0 and curr_val == "":
-                            # 이 칸이 병합에 의해 가려지는 칸인지 계산
-                            # (단순 빈칸이 아니라, 이전 행에서 이미 rowspan이 적용된 경우 건너뛰기)
                             is_merged = False
                             for prev_r in range(r-1, -1, -1):
                                 prev_val = df_qc.iloc[prev_r, c].strip()
                                 if prev_val != "":
-                                    # 위쪽의 데이터가 있는 셀에서 여기까지 rowspan이 오는지 확인
                                     count_check = 1
                                     for scan_r in range(prev_r + 1, row_count):
                                         if df_qc.iloc[scan_r, c].strip() == "": count_check += 1
@@ -344,18 +341,19 @@ def main():
                                     break
                             if is_merged: continue
 
-                        # 현재 셀부터 아래로 몇 개의 빈 셀이 있는지 계산 (rowspan 결정)
+                        # 병합 크기 계산
                         count = 1
-                        if curr_val != "":
+                        if curr_val != "" or (c != 0): # 첫 열이 아닌 경우 빈 셀도 병합 대상 확인
                             for next_r in range(r + 1, row_count):
                                 if df_qc.iloc[next_r, c].strip() == "": count += 1
                                 else: break
                         
-                        # [오류 방지] 항목 열(c=1)에서 용접 범위의 빈칸이 치수 영역(외경)을 침범하지 않게 제한
+                        # [오류방지] 항목(c=1) 열 등에서 '용접'의 빈칸 병합이 '치수' 영역을 침범하지 않게 제어
                         if c == 1 and r < outer_idx and r + count > outer_idx:
                             count = outer_idx - r
                             
-                        table_html += f'<td rowspan="{count}">{curr_val.replace("(", "<br>(")}</td>'
+                        cell_content = curr_val.replace("(", "<br>(")
+                        table_html += f'<td rowspan="{count}">{cell_content}</td>'
                 table_html += '</tr>'
             
             table_html += '</tbody></table></div>'
@@ -393,7 +391,7 @@ def main():
             {"코드": "KGM", "제강사": "카이징", "원산지": "중국"},
             {"코드": "LYN", "제강사": "롄강", "원산지": "중국"},
             {"코드": "NTS", "제강사": "신청강", "원산지": "중국"},
-            {"코드": "TNT", "제강사": "천철", "원산지": "중국"},
+            {"코드": "TNT", "천철": "천철", "원산지": "중국"},
             {"코드": "TSS", "제강사": "당산강철", "원산지": "중국"},
             {"코드": "YAN", "제강사": "연산강철", "원산지": "중국"},
         ]
@@ -412,4 +410,5 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 
