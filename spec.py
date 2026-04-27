@@ -294,73 +294,36 @@ def main():
         st.markdown('<div class="customer-title">⚖️ 품질 보증 표준 가이드</div>', unsafe_allow_html=True)
         df_qc = load_data("standard.xlsx", skip=5)
         if df_qc is not None:
-            df_qc = df_qc.fillna('').astype(str)
             col_count, row_count = len(df_qc.columns), len(df_qc)
-            
-            # [구분] 열 병합 위치 계산: '외경' 행 인덱스 찾기
-            outer_idx = -1
-            for r_idx in range(row_count):
-                if "외경" in df_qc.iloc[r_idx, 1]:
-                    outer_idx = r_idx
-                    break
-            
+            all_spans = []
+            for c in range(col_count):
+                col_data, spans, i = df_qc.iloc[:, c].fillna('').astype(str).tolist(), [], 0
+                while i < row_count:
+                    curr, count = col_data[i].strip(), 1
+                    if curr != "":
+                        while i + count < row_count and col_data[i + count].strip() == "": count += 1
+                    spans.append(count)
+                    for _ in range(count - 1): spans.append(0)
+                    i += count
+                all_spans.append(spans)
             table_html = '<div class="qc-table-wrapper notranslate" translate="no"><table class="qc-table"><thead><tr>'
             for col in df_qc.columns: table_html += f'<th>{col}</th>'
             table_html += '</tr></thead><tbody>'
-            
             for r in range(row_count):
                 table_html += '<tr>'
                 for c in range(col_count):
-                    # --- [구분] 열(첫 번째 열) 강제 3단 병합 로직 ---
-                    if c == 0:
-                        if r == 0: # 겉모양: 1행~2행
-                            table_html += f'<td rowspan="2" style="font-weight:bold;">겉모양</td>'
-                        elif r == 2: # 용접: 3행~외경 전까지 (편평시험, 용접위치 포함)
-                            if outer_idx > 2:
-                                table_html += f'<td rowspan="{outer_idx - 2}" style="font-weight:bold;">용접</td>'
-                        elif r == outer_idx: # 치수: 외경행부터 끝까지
-                            table_html += f'<td rowspan="{row_count - outer_idx}" style="font-weight:bold;">치수</td>'
-                        else:
-                            continue # 병합된 셀들은 건너뜀
-                    
-                    # --- 나머지 열 데이터 처리 ---
-                    else:
-                        curr_val = df_qc.iloc[r, c].strip()
-                        # 빈 셀인 경우 위에서 병합되었는지 확인
-                        if r > 0 and curr_val == "":
-                            is_merged = False
-                            for prev_r in range(r-1, -1, -1):
-                                prev_val = df_qc.iloc[prev_r, c].strip()
-                                if prev_val != "":
-                                    count_check = 1
-                                    for scan_r in range(prev_r + 1, row_count):
-                                        if df_qc.iloc[scan_r, c].strip() == "": count_check += 1
-                                        else: break
-                                    if prev_r + count_check > r:
-                                        is_merged = True
-                                    break
-                            if is_merged: continue
-
-                        # 병합 크기 계산
-                        count = 1
-                        for next_r in range(r + 1, row_count):
-                            if df_qc.iloc[next_r, c].strip() == "": count += 1
-                            else: break
-                        
-                        # [핵심 수정] '용접위치' 아래의 빈 칸 병합이 '외경'(치수 섹션)을 침범하지 않게 차단
-                        if c == 1 and r < outer_idx and r + count > outer_idx:
-                            count = outer_idx - r
-                            
-                        cell_content = curr_val.replace("(", "<br>(")
-                        table_html += f'<td rowspan="{count}">{cell_content}</td>'
+                    span_val = all_spans[c][r]
+                    if span_val > 0:
+                        cell_content = str(df_qc.iloc[r, c]).replace("nan", "").replace("(", "<br>(")
+                        table_html += f'<td rowspan="{span_val}">{cell_content}</td>'
                 table_html += '</tr>'
-            
             table_html += '</tbody></table></div>'
             st.markdown(table_html, unsafe_allow_html=True)
             st.markdown('<div class="footer-note">※ 기타 수요가 요청사항은 별도 협의에 따른다.</div>', unsafe_allow_html=True)
 
     with tab3:
         st.markdown('<div class="customer-title">🏭 제강사 원산지 분류표</div>', unsafe_allow_html=True)
+        # 데이터 정리 (AGS 원산지 및 누락된 PSC 포함)
         mill_data = [
             {"코드": "PSC", "제강사": "포스코", "원산지": "대한민국"},
             {"코드": "HDS", "제강사": "현대제철", "원산지": "대한민국"},
@@ -410,3 +373,5 @@ def main():
 if __name__ == "__main__":
     main()
 
+    
+    
