@@ -262,7 +262,7 @@ def main():
     render_header()
     st.markdown("<div class=main-title>📋 품질 통합 관리 시스템</div>", unsafe_allow_html=True)
 
-    tab1, tab2 = st.tabs(["📄 고객 사양서", "⚖️ 품질 보증 기준"])
+    tab1, tab2, tab3 = st.tabs(["📄 고객 사양서", "⚖️ 품질 보증 기준", "🏭 제강사 정보"])
 
     with tab1:
         df_cust = load_customer_data()
