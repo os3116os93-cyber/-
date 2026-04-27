@@ -2,19 +2,14 @@ import streamlit as st
 import pandas as pd
 import os
 import base64
-import gspread
-from google.oauth2.service_account import Credentials
 
 try:
     BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 except NameError:
     BASE_DIR = os.getcwd()
 
-# ---------------------------------------------------------
-# [수정됨] 구글 시트 및 관리자 설정 (st.secrets 활용)
-# ---------------------------------------------------------
 ADMIN_PASSWORD = st.secrets.get("ADMIN_PASSWORD", "admin1234")
-SHEET_URL = st.secrets.get("SHEET_URL", "") # secrets.toml에 구글 시트 주소 입력
+EXCEL_FILE = "customer.xlsx"
 
 st.set_page_config(
     page_title="고객사양서 - 품질기술팀",
@@ -41,66 +36,26 @@ def get_image_base64(file_path):
         st.error(f"이미지 로드 오류: {e}")
         return None
 
-# ---------------------------------------------------------
-# [추가됨] 구글 시트 인증 함수
-# ---------------------------------------------------------
-def get_gsheet_client():
-    scopes = [
-        "https://www.googleapis.com/auth/spreadsheets",
-        "https://www.googleapis.com/auth/drive"
-    ]
-    # secrets.toml에 등록된 [gcp_service_account] 정보를 불러옵니다.
-    creds = Credentials.from_service_account_info(st.secrets["gcp_service_account"], scopes=scopes)
-    return gspread.authorize(creds)
 
-# ---------------------------------------------------------
-# [수정됨] 구글 시트 데이터 로드
-# ---------------------------------------------------------
 @st.cache_data(ttl=300)
-def load_data():
+def load_data(file_name, skip=0):
+    file_path = os.path.join(BASE_DIR, file_name)
+    if not os.path.exists(file_path):
+        st.error(f"파일을 찾을 수 없습니다: {file_name}")
+        return None
     try:
-        client = get_gsheet_client()
-        sh = client.open_by_url(SHEET_URL)
-        worksheet = sh.get_worksheet(0) # 첫 번째 시트 탭 가져오기
-        data = worksheet.get_all_values()
-        
-        if not data:
-            return None
-            
-        # 첫 번째 행을 컬럼명으로 사용하여 데이터프레임 생성
-        df = pd.DataFrame(data[1:], columns=data[0])
-        
-        # 기존 로직 유지: ※가 포함된 주석 행 제외
-        if not df.empty and len(df.columns) > 0:
-            df = df[~df.iloc[:, 0].astype(str).str.contains("※", na=False)]
-            
+        df = pd.read_excel(file_path, engine="openpyxl", skiprows=skip)
+        df = df[~df.iloc[:, 0].astype(str).str.contains("※", na=False)]
         return df
     except Exception as e:
-        st.error(f"구글 시트 로드 오류: {e}")
+        st.error(f"{file_name} 로드 오류: {e}")
         return None
 
-# ---------------------------------------------------------
-# [수정됨] 구글 시트 데이터 저장
-# ---------------------------------------------------------
+
 def save_customer_data(df):
-    try:
-        client = get_gsheet_client()
-        sh = client.open_by_url(SHEET_URL)
-        worksheet = sh.get_worksheet(0)
-        
-        # 시트 데이터 초기화 후 새 데이터 덮어쓰기
-        worksheet.clear()
-        
-        # NaN 등 결측치를 빈 문자열로 바꾸고 전체를 문자열로 변환 (오류 방지)
-        save_data = [df.columns.tolist()] + df.fillna("").astype(str).values.tolist()
-        worksheet.update(save_data)
-        
-        # 저장 후 캐시 초기화하여 즉시 반영
-        load_data.clear()
-        return True
-    except Exception as e:
-        st.error(f"구글 시트 저장 오류: {e}")
-        return False
+    file_path = os.path.join(BASE_DIR, EXCEL_FILE)
+    df.to_excel(file_path, index=False)
+    load_data.clear()
 
 
 def build_standard_table():
@@ -160,7 +115,7 @@ def build_standard_table():
     rows.append(
         "<tr>"
         + cell("치수", rs=17)          # row11~27
-        + cell("외경", rs=8)            # row11~18
+        + cell("외경", rs=8)           # row11~18
         + cell("각형관")
         + cell("각형관 KS D3568 기준")
         + "</tr>"
@@ -457,9 +412,9 @@ def main():
 
     tab1, tab2, tab3 = st.tabs(["📄 고객 사양서", "⚖️ 품질 보증 기준", "🏭 제강사 정보"])
 
-    # ── 탭1: 고객 사양서 (데이터 로드 함수만 변경됨) ───────────
+    # ── 탭1: 고객 사양서 ──────────────────────────────────
     with tab1:
-        df_cust = load_data() # 변경: EXCEL_FILE 파라미터 제거
+        df_cust = load_data(EXCEL_FILE)
         if df_cust is not None:
             df_cust = df_cust.dropna(subset=[df_cust.columns[0]])
             for col in df_cust.columns:
@@ -521,7 +476,7 @@ def main():
                     )
         render_admin_login()
 
-    # ── 탭2: 품질 보증 기준 ──────────────────────────────────
+    # ── 탭2: 품질 보증 기준 (병합셀 정확 재현) ───────────
     with tab2:
         st.markdown('<div class="customer-title">⚖️ 품질 보증 표준 가이드</div>', unsafe_allow_html=True)
         st.markdown(build_standard_table(), unsafe_allow_html=True)
