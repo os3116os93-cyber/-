@@ -2,8 +2,6 @@ import streamlit as st
 import pandas as pd
 import os
 import base64
-import gspread
-from google.oauth2.service_account import Credentials
 
 try:
     BASE_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -11,11 +9,7 @@ except NameError:
     BASE_DIR = os.getcwd()
 
 ADMIN_PASSWORD = st.secrets.get("ADMIN_PASSWORD", "admin1234")
-SHEET_ID = st.secrets.get("SHEET_ID", "")
-SCOPE = [
-    "https://spreadsheets.google.com/feeds",
-    "https://www.googleapis.com/auth/drive"
-]
+EXCEL_FILE = "customer.xlsx"
 
 st.set_page_config(
     page_title="고객사양서 - 품질기술팀",
@@ -43,65 +37,25 @@ def get_image_base64(file_path):
         return None
 
 
-def get_gsheet():
-    """Google Sheets 연결"""
-    creds = Credentials.from_service_account_info(
-        st.secrets["gcp_service_account"],
-        scopes=SCOPE
-    )
-    client = gspread.authorize(creds)
-    sheet = client.open_by_key(SHEET_ID).sheet1
-    return sheet
-
-
 @st.cache_data(ttl=300)
-def load_customer_data():
-    """Google Sheets에서 고객사 데이터 로드"""
-    try:
-        sheet = get_gsheet()
-        data = sheet.get_all_records()
-        df = pd.DataFrame(data)
-        if df.empty:
-            return df
-        df = df[~df.iloc[:, 0].astype(str).str.contains("※", na=False)]
-        df = df.dropna(subset=[df.columns[0]])
-        df = df[df.iloc[:, 0].astype(str).str.strip() != ""]
-        for col in df.columns:
-            df[col] = df[col].astype(str).str.strip()
-        return df
-    except Exception as e:
-        st.error(f"Google Sheets 로드 오류: {e}")
-        return None
-
-
-@st.cache_data(ttl=300)
-def load_standard_data():
-    """standard.xlsx 로컬 파일 로드"""
-    file_path = os.path.join(BASE_DIR, "standard.xlsx")
+def load_data(file_name, skip=0):
+    file_path = os.path.join(BASE_DIR, file_name)
     if not os.path.exists(file_path):
-        st.error(f"파일을 찾을 수 없습니다: standard.xlsx")
+        st.error(f"파일을 찾을 수 없습니다: {file_name} (경로: {file_path})")
         return None
     try:
-        df = pd.read_excel(file_path, engine="openpyxl", skiprows=5)
+        df = pd.read_excel(file_path, engine='openpyxl', skiprows=skip)
         df = df[~df.iloc[:, 0].astype(str).str.contains("※", na=False)]
         return df
     except Exception as e:
-        st.error(f"standard.xlsx 로드 오류: {e}")
+        st.error(f"{file_name} 로드 오류: {e}")
         return None
 
 
-def save_to_gsheet(df):
-    """전체 데이터프레임을 Google Sheets에 저장"""
-    try:
-        sheet = get_gsheet()
-        sheet.clear()
-        values = [df.columns.tolist()] + df.fillna("").values.tolist()
-        sheet.update(values)
-        load_customer_data.clear()
-        return True
-    except Exception as e:
-        st.error(f"저장 오류: {e}")
-        return False
+def save_customer_data(df):
+    file_path = os.path.join(BASE_DIR, EXCEL_FILE)
+    df.to_excel(file_path, index=False)
+    load_data.clear()
 
 
 LOGO_FILENAME = os.path.join(BASE_DIR, "hanjin_logo.png")
@@ -149,6 +103,7 @@ st.markdown("""
     border: 1px solid #DEE2E6;
     table-layout: auto;
     white-space: nowrap;
+    width: 100%;
 }
 .qc-table th {
     padding: clamp(4px, 1.5vw, 8px) clamp(6px, 2vw, 12px);
@@ -158,7 +113,6 @@ st.markdown("""
     background-color: #F8F9FA !important;
     color: #000000 !important;
     font-weight: bold !important;
-    white-space: nowrap;
 }
 .qc-table td {
     padding: clamp(4px, 1.5vw, 8px) clamp(6px, 2vw, 12px);
@@ -167,20 +121,37 @@ st.markdown("""
     vertical-align: middle !important;
     background-color: white !important;
     color: #000000 !important;
-    font-weight: normal !important;
-    white-space: nowrap;
 }
 .footer-note { font-size: 12.5px; color: #666; margin-top: 15px; font-weight: 500; }
+
+.guide-text {
+    display: none;
+}
+
+@media (max-width: 768px) {
+    .guide-text {
+        display: block;
+        font-size: 15px;
+        font-weight: bold;
+        color: #333;
+        margin: 15px 0;
+        padding: 15px;
+        background-color: #fff4e6;
+        border-radius: 8px;
+        border-left: 5px solid #FF8C00;
+        line-height: 1.4;
+    }
+}
 </style>
 """, unsafe_allow_html=True)
 
 
 def render_header():
     if logo_base64:
-        logo_img_html = f"<img src=data:image/png;base64,{logo_base64} class=brand-logo>"
+        logo_img_html = f'<img src="data:image/png;base64,{logo_base64}" class="brand-logo">'
     else:
-        logo_img_html = "<div style=color:#ccc; font-size:12px;>[로고 미검출]</div>"
-    admin_badge = "<span class=admin-badge>🔓 관리자 모드</span>" if st.session_state.is_admin else ""
+        logo_img_html = '<div style="color:#ccc; font-size:12px;">[한진철관 로고 미검출]</div>'
+    admin_badge = '<span class="admin-badge">🔓 관리자 모드</span>' if st.session_state.is_admin else ""
     st.markdown(f"""
     <div class="header-wrapper">
         <div class="logo-container">{logo_img_html}</div>
@@ -224,10 +195,10 @@ def render_add_form(df):
         else:
             new_row = pd.DataFrame([new_values])
             updated_df = pd.concat([df, new_row], ignore_index=True)
-            if save_to_gsheet(updated_df):
-                st.session_state.show_add_form = False
-                st.success(f"{new_values[cols[0]]} 고객사가 추가되었습니다!")
-                st.rerun()
+            save_customer_data(updated_df)
+            st.session_state.show_add_form = False
+            st.success(f"'{new_values[cols[0]]}' 고객사가 추가되었습니다!")
+            st.rerun()
     if c2.button("취소", key="add_cancel"):
         st.session_state.show_add_form = False
         st.rerun()
@@ -235,23 +206,23 @@ def render_add_form(df):
 
 def render_edit_form(df, idx):
     row = df.iloc[idx]
-    st.markdown(f"### ✏️ 수정 중: {row.iloc[0]}")
+    st.markdown(f"### 수정 중: {row.iloc[0]}")
     cols = df.columns.tolist()
     updated_values = {}
     col_pairs = [cols[i:i+2] for i in range(0, len(cols), 2)]
     for pair in col_pairs:
         form_cols = st.columns(2)
         for j, col_name in enumerate(pair):
-            current_val = str(row[col_name]) if str(row[col_name]) not in ("", "nan") else ""
+            current_val = str(row[col_name]) if pd.notna(row[col_name]) and str(row[col_name]) != "nan" else ""
             updated_values[col_name] = form_cols[j].text_input(col_name, value=current_val, key=f"edit_{col_name}")
     c1, c2 = st.columns([1, 5])
     if c1.button("저장", key="edit_save"):
         for col_name, val in updated_values.items():
             df.at[idx, col_name] = val
-        if save_to_gsheet(df):
-            st.session_state.edit_idx = None
-            st.success("수정이 완료되었습니다!")
-            st.rerun()
+        save_customer_data(df)
+        st.session_state.edit_idx = None
+        st.success("수정이 완료되었습니다!")
+        st.rerun()
     if c2.button("취소", key="edit_cancel"):
         st.session_state.edit_idx = None
         st.rerun()
@@ -259,64 +230,56 @@ def render_edit_form(df, idx):
 
 def main():
     render_header()
-    st.markdown("<div class=main-title>📋 품질 통합 관리 시스템</div>", unsafe_allow_html=True)
+    st.markdown('<div class="main-title">📋 품질 통합 관리 시스템</div>', unsafe_allow_html=True)
 
-    # 탭 정의 수정: 3개의 탭 변수를 생성합니다.
-    tab1, tab2, tab3 = st.tabs(["📄 고객 사양서", "⚖️ 품질 보증 기준", "🏭 제강사 분류"])
+    tab1, tab2, tab3 = st.tabs(["📄 고객 사양서", "⚖️ 품질 보증 기준", "🏭 제강사 정보"])
 
     with tab1:
-        df_cust = load_customer_data()
-        if df_cust is not None and not df_cust.empty:
+        df_cust = load_data(EXCEL_FILE)
+        if df_cust is not None:
+            df_cust = df_cust.dropna(subset=[df_cust.columns[0]])
+            for col in df_cust.columns:
+                df_cust[col] = df_cust[col].astype(str).str.strip()
             customer_list = df_cust.iloc[:, 0].tolist()
             st.sidebar.header("🏢 고객사 목록")
-
             if st.session_state.is_admin:
                 if st.sidebar.button("➕ 고객사 추가", key="open_add_form"):
                     st.session_state.show_add_form = True
                     st.session_state.edit_idx = None
-
-            sel_idx = st.sidebar.radio(
-                "업체를 선택하세요:",
-                options=list(range(len(df_cust))),
-                format_func=lambda i: customer_list[i],
-                index=None,
-                key="customer_radio"
-            )
-
+            sel_idx = st.sidebar.radio("업체를 선택하세요:", options=list(range(len(df_cust))), format_func=lambda i: customer_list[i], index=None, key="customer_radio")
+            if sel_idx is None and not st.session_state.show_add_form and st.session_state.edit_idx is None:
+                st.markdown('<div class="guide-text">좌상단 >> 화살표를 눌러 고객사를 선택 하십시오.</div>', unsafe_allow_html=True)
             if st.session_state.is_admin and st.session_state.show_add_form:
                 render_add_form(df_cust)
             elif st.session_state.is_admin and st.session_state.edit_idx is not None:
                 render_edit_form(df_cust, st.session_state.edit_idx)
             elif sel_idx is not None:
                 row = df_cust.iloc[sel_idx]
-                st.markdown(f"<div class=customer-title>■ {row.iloc[0]}</div>", unsafe_allow_html=True)
-
+                st.markdown(f'<div class="customer-title">■ {row.iloc[0]}</div>', unsafe_allow_html=True)
                 if st.session_state.is_admin:
                     a1, a2, _ = st.columns([1, 1, 8])
-                    if a1.button("✏️ 수정", key="edit_btn"):
+                    if a1.button("수정", key="edit_btn"):
                         st.session_state.edit_idx = sel_idx
                         st.session_state.show_add_form = False
                         st.rerun()
-                    if a2.button("🗑️ 삭제", key="delete_btn"):
+                    if a2.button("삭제", key="delete_btn"):
                         st.session_state[f"confirm_delete_{sel_idx}"] = True
-
                     if st.session_state.get(f"confirm_delete_{sel_idx}", False):
-                        st.warning(f"{row.iloc[0]} 고객사를 정말 삭제하시겠습니까?")
+                        st.warning(f"**'{row.iloc[0]}'** 고객사를 정말 삭제하시겠습니까?")
                         d1, d2 = st.columns([1, 5])
                         if d1.button("확인 삭제", key="confirm_del"):
                             updated_df = df_cust.drop(index=sel_idx).reset_index(drop=True)
-                            if save_to_gsheet(updated_df):
-                                st.session_state[f"confirm_delete_{sel_idx}"] = False
-                                st.success("삭제되었습니다.")
-                                st.rerun()
+                            save_customer_data(updated_df)
+                            st.session_state[f"confirm_delete_{sel_idx}"] = False
+                            st.success("삭제되었습니다.")
+                            st.rerun()
                         if d2.button("취소", key="cancel_del"):
                             st.session_state[f"confirm_delete_{sel_idx}"] = False
                             st.rerun()
-
                 for i in range(1, len(row.index)):
                     col_n = row.index[i]
                     raw = row.iloc[i]
-                    val = str(raw).strip() if str(raw).strip() not in ("", "nan") else "-"
+                    val = str(raw).strip() if pd.notna(raw) and str(raw).strip() not in ("", "nan") else "-"
                     is_sp = any(k in str(col_n) for k in ["특이사항", "주의", "마킹", "포장"])
                     c = "#E63946" if is_sp else "#495057"
                     st.markdown(f"""
@@ -325,47 +288,55 @@ def main():
                         <div class="notranslate" translate="no" style="flex: 1; padding: 10px; background-color: white; font-size: 13.5px; line-height: 1.4; color: #212529; font-weight: 500; word-break: break-all;">{val}</div>
                     </div>
                     """, unsafe_allow_html=True)
-
         render_admin_login()
 
     with tab2:
-        st.markdown("<div class=customer-title>⚖️ 품질 보증 표준 가이드</div>", unsafe_allow_html=True)
-        df_qc = load_standard_data()
+        st.markdown('<div class="customer-title">⚖️ 품질 보증 표준 가이드</div>', unsafe_allow_html=True)
+        df_qc = load_data("standard.xlsx", skip=5)
         if df_qc is not None:
-            col_count = len(df_qc.columns)
-            row_count = len(df_qc)
+            col_count, row_count = len(df_qc.columns), len(df_qc)
             all_spans = []
+            
+            # 병합 로직 수정 부분
             for c in range(col_count):
-                col_data = df_qc.iloc[:, c].fillna("").astype(str).tolist()
+                col_data = df_qc.iloc[:, c].fillna('').astype(str).tolist()
+                # '항목' 열(두 번째 열, index 1) 데이터 참조 (외경 위치 확인용)
+                item_col = df_qc.iloc[:, 1].fillna('').astype(str).tolist()
+                
                 spans = []
                 i = 0
                 while i < row_count:
                     curr = col_data[i].strip()
                     count = 1
                     if curr != "":
-                        while i + count < row_count and col_data[i + count].strip() == "":
-                            count += 1
+                        while i + count < row_count:
+                            # '구분' 열(index 0)일 때, 다음 행의 '항목'이 '외경'이면 병합을 강제로 중단
+                            if c == 0 and "외경" in item_col[i + count]:
+                                break
+                            
+                            if col_data[i + count].strip() == "":
+                                count += 1
+                            else:
+                                break
                     spans.append(count)
-                    for _ in range(count - 1):
-                        spans.append(0)
+                    for _ in range(count - 1): spans.append(0)
                     i += count
                 all_spans.append(spans)
 
-            table_html = "<div class=qc-table-wrapper><table class=qc-table><thead><tr>"
-            for col in df_qc.columns:
-                table_html += f"<th>{col}</th>"
-            table_html += "</tr></thead><tbody>"
+            table_html = '<div class="qc-table-wrapper notranslate" translate="no"><table class="qc-table"><thead><tr>'
+            for col in df_qc.columns: table_html += f'<th>{col}</th>'
+            table_html += '</tr></thead><tbody>'
             for r in range(row_count):
-                table_html += "<tr>"
+                table_html += '<tr>'
                 for c in range(col_count):
                     span_val = all_spans[c][r]
                     if span_val > 0:
                         cell_content = str(df_qc.iloc[r, c]).replace("nan", "").replace("(", "<br>(")
-                        table_html += f"<td rowspan={span_val}>{cell_content}</td>"
-                table_html += "</tr>"
-            table_html += "</tbody></table></div>"
+                        table_html += f'<td rowspan="{span_val}">{cell_content}</td>'
+                table_html += '</tr>'
+            table_html += '</tbody></table></div>'
             st.markdown(table_html, unsafe_allow_html=True)
-            st.markdown("<div class=footer-note>※ 기타 수요가 요청사항은 별도 협의에 따른다.</div>", unsafe_allow_html=True)
+            st.markdown('<div class="footer-note">※ 기타 수요가 요청사항은 별도 협의에 따른다.</div>', unsafe_allow_html=True)
 
     with tab3:
         st.markdown('<div class="customer-title">🏭 제강사 원산지 분류표</div>', unsafe_allow_html=True)
@@ -382,7 +353,7 @@ def main():
             {"코드": "CHS", "제강사": "중홍", "원산지": "대만"},
             {"코드": "ANF", "제강사": "안펑", "원산지": "중국"},
             {"코드": "BAO", "제강사": "포두", "원산지": "중국"},
-            {"코드": "JYE", "제강사": "징예", "원산지": "중국"},
+            {"코드": "JYE", "제강사": "징예", "중국": "중국"},
             {"코드": "RSC", "제강사": "일조강철", "원산지": "중국"},
             {"코드": "AGS", "제강사": "안강", "원산지": "중국"},
             {"코드": "DGH", "제강사": "동화", "원산지": "중국"},
@@ -405,9 +376,7 @@ def main():
         df_mill = pd.DataFrame(mill_data)
         search_q = st.text_input("🔍 제강사 명칭 또는 코드 검색", placeholder="예: PSC, 포스코, 중국...", key="mill_search")
         if search_q:
-            df_mill = df_mill[df_mill['코드'].str.contains(search_q, case=False, na=False) | 
-                              df_mill['제강사'].str.contains(search_q, case=False, na=False) | 
-                              df_mill['원산지'].str.contains(search_q, case=False, na=False)]
+            df_mill = df_mill[df_mill['코드'].str.contains(search_q, case=False, na=False) | df_mill['제강사'].str.contains(search_q, case=False, na=False) | df_mill['원산지'].str.contains(search_q, case=False, na=False)]
 
         mill_html = '<div class="qc-table-wrapper notranslate" translate="no"><table class="qc-table"><thead><tr><th>코드</th><th>제강사</th><th>원산지</th></tr></thead><tbody>'
         for _, row in df_mill.iterrows():
@@ -420,3 +389,4 @@ def main():
 if __name__ == "__main__":
     main()
 
+    
