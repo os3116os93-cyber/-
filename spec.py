@@ -2,6 +2,7 @@ import streamlit as st
 import pandas as pd
 import os
 import base64
+from openpyxl import load_workbook
 
 try:
     BASE_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -41,14 +42,97 @@ def get_image_base64(file_path):
 def load_data(file_name, skip=0):
     file_path = os.path.join(BASE_DIR, file_name)
     if not os.path.exists(file_path):
-        st.error(f"파일을 찾을 수 없습니다: {file_name} (경로: {file_path})")
+        st.error(f"파일을 찾을 수 없습니다: {file_name}")
         return None
     try:
-        df = pd.read_excel(file_path, engine='openpyxl', skiprows=skip)
+        df = pd.read_excel(file_path, engine="openpyxl", skiprows=skip)
         df = df[~df.iloc[:, 0].astype(str).str.contains("※", na=False)]
         return df
     except Exception as e:
         st.error(f"{file_name} 로드 오류: {e}")
+        return None
+
+
+@st.cache_data(ttl=300)
+def load_standard_with_merge(file_name, skip=5):
+    """openpyxl로 병합셀 정보까지 읽어서 HTML 테이블 생성"""
+    file_path = os.path.join(BASE_DIR, file_name)
+    if not os.path.exists(file_path):
+        st.error(f"파일을 찾을 수 없습니다: {file_name}")
+        return None
+    try:
+        wb = load_workbook(file_path, data_only=True)
+        ws = wb.active
+
+        # 병합셀 범위 수집
+        merge_map = {}   # (row, col) -> (rowspan, colspan)
+        skip_cells = set()  # 병합으로 숨겨진 셀
+        for merged in ws.merged_cells.ranges:
+            min_r, min_c = merged.min_row, merged.min_col
+            max_r, max_c = merged.max_row, merged.max_col
+            rowspan = max_r - min_r + 1
+            colspan = max_c - min_c + 1
+            merge_map[(min_r, min_c)] = (rowspan, colspan)
+            for r in range(min_r, max_r + 1):
+                for c in range(min_c, max_c + 1):
+                    if not (r == min_r and c == min_c):
+                        skip_cells.add((r, c))
+
+        # skip행 이후부터 읽기
+        all_rows = list(ws.iter_rows(values_only=True))
+        data_rows = all_rows[skip:]
+        header = [str(v) if v is not None else "" for v in data_rows[0]]
+        body = data_rows[1:]
+
+        # 헤더 행 번호 (1-based, openpyxl 기준)
+        header_row_idx = skip + 1  # 헤더가 있는 실제 시트 행
+
+        # ※ 포함 행 제거
+        filtered_body = []
+        filtered_row_indices = []
+        for i, row in enumerate(body):
+            first = str(row[0]) if row[0] is not None else ""
+            if "※" not in first:
+                filtered_body.append(row)
+                filtered_row_indices.append(header_row_idx + 1 + i)  # 실제 시트 행번호
+
+        # HTML 생성
+        table_html = """<div class="qc-table-wrapper notranslate" translate="no">
+<table class="qc-table"><thead><tr>"""
+        for h in header:
+            table_html += f"<th>{h}</th>"
+        table_html += "</tr></thead><tbody>"
+
+        for i, (row, sheet_r) in enumerate(zip(filtered_body, filtered_row_indices)):
+            table_html += "<tr>"
+            for j, val in enumerate(row):
+                sheet_c = j + 1  # 1-based col
+                if (sheet_r, sheet_c) in skip_cells:
+                    continue
+                cell_val = str(val).strip() if val is not None else ""
+                cell_val = cell_val.replace("None", "").replace("nan", "")
+                cell_val = cell_val.replace("(", "<br>(")
+                rs, cs = 1, 1
+                if (sheet_r, sheet_c) in merge_map:
+                    rs, cs = merge_map[(sheet_r, sheet_c)]
+                    # rs 조정: ※행이 제거되었으므로 실제 표시되는 행 수만큼만
+                    actual_rs = sum(
+                        1 for k in range(sheet_r, sheet_r + rs)
+                        if k == header_row_idx + 1 or k in filtered_row_indices
+                    )
+                    rs = max(actual_rs, 1)
+                attrs = ""
+                if rs > 1:
+                    attrs += f" rowspan="{rs}""
+                if cs > 1:
+                    attrs += f" colspan="{cs}""
+                table_html += f"<td{attrs}>{cell_val}</td>"
+            table_html += "</tr>"
+
+        table_html += "</tbody></table></div>"
+        return table_html
+    except Exception as e:
+        st.error(f"standard.xlsx 병합 로드 오류: {e}")
         return None
 
 
@@ -123,11 +207,7 @@ st.markdown("""
     color: #000000 !important;
 }
 .footer-note { font-size: 12.5px; color: #666; margin-top: 15px; font-weight: 500; }
-
-.guide-text {
-    display: none;
-}
-
+.guide-text { display: none; }
 @media (max-width: 768px) {
     .guide-text {
         display: block;
@@ -234,6 +314,7 @@ def main():
 
     tab1, tab2, tab3 = st.tabs(["📄 고객 사양서", "⚖️ 품질 보증 기준", "🏭 제강사 정보"])
 
+    # ── 탭1: 고객 사양서 ──
     with tab1:
         df_cust = load_data(EXCEL_FILE)
         if df_cust is not None:
@@ -290,54 +371,15 @@ def main():
                     """, unsafe_allow_html=True)
         render_admin_login()
 
+    # ── 탭2: 품질 보증 기준 (openpyxl 병합셀 정확 재현) ──
     with tab2:
         st.markdown('<div class="customer-title">⚖️ 품질 보증 표준 가이드</div>', unsafe_allow_html=True)
-        df_qc = load_data("standard.xlsx", skip=5)
-        if df_qc is not None:
-            col_count, row_count = len(df_qc.columns), len(df_qc)
-            all_spans = []
-            
-            # 병합 로직 수정 부분
-            for c in range(col_count):
-                col_data = df_qc.iloc[:, c].fillna('').astype(str).tolist()
-                # '항목' 열(두 번째 열, index 1) 데이터 참조 (외경 위치 확인용)
-                item_col = df_qc.iloc[:, 1].fillna('').astype(str).tolist()
-                
-                spans = []
-                i = 0
-                while i < row_count:
-                    curr = col_data[i].strip()
-                    count = 1
-                    if curr != "":
-                        while i + count < row_count:
-                            # '구분' 열(index 0)일 때, 다음 행의 '항목'이 '외경'이면 병합을 강제로 중단
-                            if c == 0 and "외경" in item_col[i + count]:
-                                break
-                            
-                            if col_data[i + count].strip() == "":
-                                count += 1
-                            else:
-                                break
-                    spans.append(count)
-                    for _ in range(count - 1): spans.append(0)
-                    i += count
-                all_spans.append(spans)
-
-            table_html = '<div class="qc-table-wrapper notranslate" translate="no"><table class="qc-table"><thead><tr>'
-            for col in df_qc.columns: table_html += f'<th>{col}</th>'
-            table_html += '</tr></thead><tbody>'
-            for r in range(row_count):
-                table_html += '<tr>'
-                for c in range(col_count):
-                    span_val = all_spans[c][r]
-                    if span_val > 0:
-                        cell_content = str(df_qc.iloc[r, c]).replace("nan", "").replace("(", "<br>(")
-                        table_html += f'<td rowspan="{span_val}">{cell_content}</td>'
-                table_html += '</tr>'
-            table_html += '</tbody></table></div>'
+        table_html = load_standard_with_merge("standard.xlsx", skip=5)
+        if table_html:
             st.markdown(table_html, unsafe_allow_html=True)
             st.markdown('<div class="footer-note">※ 기타 수요가 요청사항은 별도 협의에 따른다.</div>', unsafe_allow_html=True)
 
+    # ── 탭3: 제강사 정보 ──
     with tab3:
         st.markdown('<div class="customer-title">🏭 제강사 원산지 분류표</div>', unsafe_allow_html=True)
         mill_data = [
@@ -353,7 +395,7 @@ def main():
             {"코드": "CHS", "제강사": "중홍", "원산지": "대만"},
             {"코드": "ANF", "제강사": "안펑", "원산지": "중국"},
             {"코드": "BAO", "제강사": "포두", "원산지": "중국"},
-            {"코드": "JYE", "제강사": "징예", "중국": "중국"},
+            {"코드": "JYE", "제강사": "징예", "원산지": "중국"},
             {"코드": "RSC", "제강사": "일조강철", "원산지": "중국"},
             {"코드": "AGS", "제강사": "안강", "원산지": "중국"},
             {"코드": "DGH", "제강사": "동화", "원산지": "중국"},
@@ -376,17 +418,20 @@ def main():
         df_mill = pd.DataFrame(mill_data)
         search_q = st.text_input("🔍 제강사 명칭 또는 코드 검색", placeholder="예: PSC, 포스코, 중국...", key="mill_search")
         if search_q:
-            df_mill = df_mill[df_mill['코드'].str.contains(search_q, case=False, na=False) | df_mill['제강사'].str.contains(search_q, case=False, na=False) | df_mill['원산지'].str.contains(search_q, case=False, na=False)]
-
+            df_mill = df_mill[
+                df_mill["코드"].str.contains(search_q, case=False, na=False) |
+                df_mill["제강사"].str.contains(search_q, case=False, na=False) |
+                df_mill["원산지"].str.contains(search_q, case=False, na=False)
+            ]
         mill_html = '<div class="qc-table-wrapper notranslate" translate="no"><table class="qc-table"><thead><tr><th>코드</th><th>제강사</th><th>원산지</th></tr></thead><tbody>'
-        for _, row in df_mill.iterrows():
-            o_style = 'style="color:#007BFF; font-weight:bold;"' if row['원산지'] == "대한민국" else ""
-            mill_html += f'<tr><td style="font-weight:bold;">{row["코드"]}</td><td>{row["제강사"]}</td><td {o_style}>{row["원산지"]}</td></tr>'
+        for _, r in df_mill.iterrows():
+            o_style = 'style="color:#007BFF; font-weight:bold;"' if r["원산지"] == "대한민국" else ""
+            mill_html += f'<tr><td style="font-weight:bold;">{r["코드"]}</td><td>{r["제강사"]}</td><td {o_style}>{r["원산지"]}</td></tr>'
         mill_html += '</tbody></table></div>'
         st.markdown(mill_html, unsafe_allow_html=True)
         st.markdown('<div class="footer-note">※ 제강사 정보는 검색으로 손쉬운 확인이 가능합니다.</div>', unsafe_allow_html=True)
 
+
 if __name__ == "__main__":
     main()
-
     
