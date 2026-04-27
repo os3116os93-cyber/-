@@ -121,11 +121,14 @@ def load_standard_with_merge(file_name, skip=5):
                         if k == header_row_idx + 1 or k in filtered_row_indices
                     )
                     rs = max(actual_rs, 1)
+                
                 attrs = ""
+                # 따옴표 중복 에러가 났던 지점 수정 (바깥쪽을 홑따옴표로 변경)
                 if rs > 1:
-                    attrs += f" rowspan="{rs}""
+                    attrs += f' rowspan="{rs}"'
                 if cs > 1:
-                    attrs += f" colspan="{cs}""
+                    attrs += f' colspan="{cs}"'
+                
                 table_html += f"<td{attrs}>{cell_val}</td>"
             table_html += "</tr>"
 
@@ -371,7 +374,7 @@ def main():
                     """, unsafe_allow_html=True)
         render_admin_login()
 
-    # ── 탭2: 품질 보증 기준 (openpyxl 병합셀 정확 재현) ──
+    # ── 탭2: 품질 보증 기준 ──
     with tab2:
         st.markdown('<div class="customer-title">⚖️ 품질 보증 표준 가이드</div>', unsafe_allow_html=True)
         table_html = load_standard_with_merge("standard.xlsx", skip=5)
@@ -435,4 +438,3 @@ def main():
 if __name__ == "__main__":
     main()
 
-    
