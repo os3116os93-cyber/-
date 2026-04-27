@@ -292,33 +292,51 @@ def main():
 
     with tab2:
         st.markdown('<div class="customer-title">⚖️ 품질 보증 표준 가이드</div>', unsafe_allow_html=True)
-        # --- 원본 코드의 엑셀 데이터 기반 테이블 생성 로직 복구 ---
         df_qc = load_data("standard.xlsx", skip=5)
+        
         if df_qc is not None:
             col_count, row_count = len(df_qc.columns), len(df_qc)
             all_spans = []
+            
+            # 각 컬럼별로 이미지 계층 구조에 맞춘 병합 로직 (이전 텍스트와 같거나 빈 셀이면 병합)
             for c in range(col_count):
-                col_data, spans, i = df_qc.iloc[:, c].fillna('').astype(str).tolist(), [], 0
+                col_data = df_qc.iloc[:, c].fillna('').astype(str).tolist()
+                spans = [0] * row_count
+                i = 0
                 while i < row_count:
-                    curr, count = col_data[i].strip(), 1
-                    if curr != "":
-                        while i + count < row_count and col_data[i + count].strip() == "": count += 1
-                    spans.append(count)
-                    for _ in range(count - 1): spans.append(0)
+                    curr_val = col_data[i].strip()
+                    if curr_val == "" or curr_val == "nan":
+                        spans[i] = 1
+                        i += 1
+                        continue
+                    
+                    count = 1
+                    while (i + count < row_count):
+                        next_val = col_data[i + count].strip()
+                        # 아래 셀이 현재와 같거나 비어있으면 병합 범위에 포함
+                        if next_val == curr_val or next_val == "" or next_val == "nan":
+                            count += 1
+                        else:
+                            break
+                    spans[i] = count
                     i += count
                 all_spans.append(spans)
+
             table_html = '<div class="qc-table-wrapper notranslate" translate="no"><table class="qc-table"><thead><tr>'
-            for col in df_qc.columns: table_html += f'<th>{col}</th>'
+            for col in df_qc.columns: 
+                table_html += f'<th>{col}</th>'
             table_html += '</tr></thead><tbody>'
+            
             for r in range(row_count):
                 table_html += '<tr>'
                 for c in range(col_count):
                     span_val = all_spans[c][r]
                     if span_val > 0:
-                        cell_content = str(df_qc.iloc[r, c]).replace("nan", "").replace("(", "<br>(")
+                        cell_content = str(df_qc.iloc[r, c]).replace("nan", "").replace("(", "<br>(").replace("\n", "<br>")
                         table_html += f'<td rowspan="{span_val}">{cell_content}</td>'
                 table_html += '</tr>'
             table_html += '</tbody></table></div>'
+            
             st.markdown(table_html, unsafe_allow_html=True)
             st.markdown('<div class="footer-note">※ 기타 수요가 요청사항은 별도 협의에 따른다.</div>', unsafe_allow_html=True)
 
