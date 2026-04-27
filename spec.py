@@ -41,7 +41,7 @@ def get_image_base64(file_path):
 def load_data(file_name, skip=0):
     file_path = os.path.join(BASE_DIR, file_name)
     if not os.path.exists(file_path):
-        st.error(f"파일을 찾을 수 없습니다: {file_name} (경로: {file_path})")
+        st.error(f"파일을 찾을 수 없습니다: {file_name}")
         return None
     try:
         df = pd.read_excel(file_path, engine='openpyxl', skiprows=skip)
@@ -294,36 +294,78 @@ def main():
         st.markdown('<div class="customer-title">⚖️ 품질 보증 표준 가이드</div>', unsafe_allow_html=True)
         df_qc = load_data("standard.xlsx", skip=5)
         if df_qc is not None:
-            col_count, row_count = len(df_qc.columns), len(df_qc)
-            all_spans = []
-            for c in range(col_count):
-                col_data, spans, i = df_qc.iloc[:, c].fillna('').astype(str).tolist(), [], 0
-                while i < row_count:
-                    curr, count = col_data[i].strip(), 1
-                    if curr != "":
-                        while i + count < row_count and col_data[i + count].strip() == "": count += 1
-                    spans.append(count)
-                    for _ in range(count - 1): spans.append(0)
-                    i += count
-                all_spans.append(spans)
+            df_qc = df_qc.fillna('').astype(str)
+            row_count = len(df_qc)
+            
+            # [섹션 위치 계산] 각형관 키워드가 처음 나오는 행이 '치수'의 시작점
+            dim_start_idx = next((i for i, v in enumerate(df_qc.iloc[:, 2]) if "각형관" in v), -1)
+            circ_start_idx = next((i for i, v in enumerate(df_qc.iloc[:, 2]) if "원형관" in v), -1)
+            yochul_idx = next((i for i, v in enumerate(df_qc.iloc[:, 0]) if "요철" in v), row_count)
+
             table_html = '<div class="qc-table-wrapper notranslate" translate="no"><table class="qc-table"><thead><tr>'
             for col in df_qc.columns: table_html += f'<th>{col}</th>'
             table_html += '</tr></thead><tbody>'
+
             for r in range(row_count):
                 table_html += '<tr>'
-                for c in range(col_count):
-                    span_val = all_spans[c][r]
-                    if span_val > 0:
-                        cell_content = str(df_qc.iloc[r, c]).replace("nan", "").replace("(", "<br>(")
-                        table_html += f'<td rowspan="{span_val}">{cell_content}</td>'
+                for c in range(len(df_qc.columns)):
+                    # 1. [구분] 열 (겉모양/용접/치수)
+                    if c == 0:
+                        if r == 0: table_html += '<td rowspan="2" style="font-weight:bold;">겉모양</td>'
+                        elif r == 2: table_html += f'<td rowspan="{dim_start_idx - 2}" style="font-weight:bold;">용접</td>'
+                        elif r == dim_start_idx: table_html += f'<td rowspan="{row_count - dim_start_idx}" style="font-weight:bold;">치수</td>'
+                        elif r > 0: continue
+                    
+                    # 2. [항목] 열 (편평시험, 용접위치, 외경 등)
+                    elif c == 1:
+                        if r == dim_start_idx:
+                            table_html += f'<td rowspan="{circ_start_idx - dim_start_idx}" style="font-weight:bold;">외경</td>'
+                        elif dim_start_idx < r < circ_start_idx: continue
+                        elif r == circ_start_idx:
+                            table_html += f'<td rowspan="{yochul_idx - circ_start_idx}" style="font-weight:bold;">외경</td>'
+                        elif circ_start_idx < r < yochul_idx: continue
+                        else:
+                            curr_val = df_qc.iloc[r, c].strip()
+                            if curr_val == "" and r > 0: continue
+                            rs = 1
+                            for i in range(r + 1, row_count):
+                                if df_qc.iloc[i, c].strip() == "": rs += 1
+                                else: break
+                            table_html += f'<td rowspan="{rs}">{curr_val}</td>'
+
+                    # 3. [데이터] 열 (사내/KS 기준)
+                    else:
+                        val = df_qc.iloc[r, c].strip()
+                        if val == "" and r > 0:
+                            # 위에서 이미 병합되었는지 확인
+                            is_merged = False
+                            for prev_r in range(r-1, -1, -1):
+                                if df_qc.iloc[prev_r, c].strip() != "":
+                                    cnt = 1
+                                    for scan in range(prev_r + 1, row_count):
+                                        if scan in [dim_start_idx, circ_start_idx]: break
+                                        if df_qc.iloc[scan, c].strip() == "": cnt += 1
+                                        else: break
+                                    if prev_r + cnt > r: is_merged = True
+                                    break
+                            if is_merged: continue
+                        
+                        row_span = 1
+                        for next_r in range(r + 1, row_count):
+                            if next_r in [dim_start_idx, circ_start_idx]: break
+                            if df_qc.iloc[next_r, c].strip() == "": row_span += 1
+                            else: break
+                        
+                        cell_content = val.replace("(", "<br>(")
+                        table_html += f'<td rowspan="{row_span}">{cell_content}</td>'
                 table_html += '</tr>'
+            
             table_html += '</tbody></table></div>'
             st.markdown(table_html, unsafe_allow_html=True)
             st.markdown('<div class="footer-note">※ 기타 수요가 요청사항은 별도 협의에 따른다.</div>', unsafe_allow_html=True)
 
     with tab3:
         st.markdown('<div class="customer-title">🏭 제강사 원산지 분류표</div>', unsafe_allow_html=True)
-        # 데이터 정리 (AGS 원산지 및 누락된 PSC 포함)
         mill_data = [
             {"코드": "PSC", "제강사": "포스코", "원산지": "대한민국"},
             {"코드": "HDS", "제강사": "현대제철", "원산지": "대한민국"},
@@ -364,8 +406,8 @@ def main():
 
         mill_html = '<div class="qc-table-wrapper notranslate" translate="no"><table class="qc-table"><thead><tr><th>코드</th><th>제강사</th><th>원산지</th></tr></thead><tbody>'
         for _, row in df_mill.iterrows():
-            o_style = 'style="color:#007BFF; font-weight:bold;"' if row['원산지'] == "대한민국" else ""
-            mill_html += f'<tr><td style="font-weight:bold;">{row["코드"]}</td><td>{row["제강사"]}</td><td {o_style}>{row["원산지"]}</td></tr>'
+            origin_style = 'style="color:#007BFF; font-weight:bold;"' if row['원산지'] == "대한민국" else ""
+            mill_html += f'<tr><td style="font-weight:bold;">{row["코드"]}</td><td>{row["제강사"]}</td><td {origin_style}>{row["원산지"]}</td></tr>'
         mill_html += '</tbody></table></div>'
         st.markdown(mill_html, unsafe_allow_html=True)
         st.markdown('<div class="footer-note">※ 제강사 정보는 검색으로 손쉬운 확인이 가능합니다.</div>', unsafe_allow_html=True)
@@ -373,5 +415,3 @@ def main():
 if __name__ == "__main__":
     main()
 
-    
-    
