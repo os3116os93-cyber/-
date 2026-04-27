@@ -294,41 +294,34 @@ def main():
         st.markdown('<div class="customer-title">⚖️ 품질 보증 표준 가이드</div>', unsafe_allow_html=True)
         df_qc = load_data("standard.xlsx", skip=5)
         if df_qc is not None:
-            # 엑셀의 데이터 전처리: nan 제거 및 문자열화
             df_qc = df_qc.fillna('').astype(str)
             col_count, row_count = len(df_qc.columns), len(df_qc)
-            
             all_spans = []
+            
+            # 병합 로직 최적화
             for c in range(col_count):
                 col_data = df_qc.iloc[:, c].tolist()
-                item_col = df_qc.iloc[:, 1].tolist() # '항목' 열 참조
-                
+                item_col = df_qc.iloc[:, 1].tolist()
                 spans = []
                 i = 0
                 while i < row_count:
                     curr = col_data[i].strip()
                     count = 1
                     
-                    # '구분' 열(index 0)에 대한 특수 처리
+                    # 구분(첫 번째 열) 병합 제어
                     if c == 0:
-                        # 현재 행이 '용접'이거나 빈칸일 때
                         if curr == "용접" or curr == "":
                             while i + count < row_count:
-                                next_item = item_col[i + count].strip()
-                                # '항목' 열에 '외경'이 나타나면 '용접' 병합 강제 종료
-                                if "외경" in next_item:
+                                # 항목 열의 텍스트가 '외경'이면 무조건 용접 병합 종료
+                                if "외경" in item_col[i + count]:
                                     break
-                                # 다음 칸이 비어있으면 병합 계속
                                 if col_data[i + count].strip() == "":
                                     count += 1
                                 else:
                                     break
-                        # 현재 행이 '치수'이거나 그 이후일 때
                         elif curr == "치수":
                             while i + count < row_count and col_data[i + count].strip() == "":
                                 count += 1
-                    
-                    # 그 외 일반 열의 병합 로직
                     else:
                         if curr != "":
                             while i + count < row_count and col_data[i + count].strip() == "":
@@ -347,10 +340,9 @@ def main():
                 for c in range(col_count):
                     span_val = all_spans[c][r]
                     if span_val > 0:
-                        # 셀 내용 가져오기 (만약 구분 열이 비어있는데 병합 시작점이면 강제로 텍스트 할당 방지)
                         cell_content = df_qc.iloc[r, c].strip()
                         
-                        # [오류수정 핵심]: '외경' 라인의 구분 칸이 비어있을 때 '치수'라는 글자가 누락되지 않도록 보완
+                        # 외경 행의 구분 열이 비어있을 때 강제로 '치수' 주입
                         if c == 0 and "외경" in df_qc.iloc[r, 1] and cell_content == "":
                              cell_content = "치수"
                         
@@ -411,4 +403,5 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 
