@@ -296,16 +296,33 @@ def main():
         if df_qc is not None:
             col_count, row_count = len(df_qc.columns), len(df_qc)
             all_spans = []
+            
+            # 병합 로직 수정 부분
             for c in range(col_count):
-                col_data, spans, i = df_qc.iloc[:, c].fillna('').astype(str).tolist(), [], 0
+                col_data = df_qc.iloc[:, c].fillna('').astype(str).tolist()
+                # '항목' 열(두 번째 열, index 1) 데이터 참조 (외경 위치 확인용)
+                item_col = df_qc.iloc[:, 1].fillna('').astype(str).tolist()
+                
+                spans = []
+                i = 0
                 while i < row_count:
-                    curr, count = col_data[i].strip(), 1
+                    curr = col_data[i].strip()
+                    count = 1
                     if curr != "":
-                        while i + count < row_count and col_data[i + count].strip() == "": count += 1
+                        while i + count < row_count:
+                            # '구분' 열(index 0)일 때, 다음 행의 '항목'이 '외경'이면 병합을 강제로 중단
+                            if c == 0 and "외경" in item_col[i + count]:
+                                break
+                            
+                            if col_data[i + count].strip() == "":
+                                count += 1
+                            else:
+                                break
                     spans.append(count)
                     for _ in range(count - 1): spans.append(0)
                     i += count
                 all_spans.append(spans)
+
             table_html = '<div class="qc-table-wrapper notranslate" translate="no"><table class="qc-table"><thead><tr>'
             for col in df_qc.columns: table_html += f'<th>{col}</th>'
             table_html += '</tr></thead><tbody>'
@@ -323,7 +340,6 @@ def main():
 
     with tab3:
         st.markdown('<div class="customer-title">🏭 제강사 원산지 분류표</div>', unsafe_allow_html=True)
-        # 데이터 정리 (AGS 원산지 및 누락된 PSC 포함)
         mill_data = [
             {"코드": "PSC", "제강사": "포스코", "원산지": "대한민국"},
             {"코드": "HDS", "제강사": "현대제철", "원산지": "대한민국"},
@@ -337,7 +353,7 @@ def main():
             {"코드": "CHS", "제강사": "중홍", "원산지": "대만"},
             {"코드": "ANF", "제강사": "안펑", "원산지": "중국"},
             {"코드": "BAO", "제강사": "포두", "원산지": "중국"},
-            {"코드": "JYE", "제강사": "징예", "원산지": "중국"},
+            {"코드": "JYE", "제강사": "징예", "중국": "중국"},
             {"코드": "RSC", "제강사": "일조강철", "원산지": "중국"},
             {"코드": "AGS", "제강사": "안강", "원산지": "중국"},
             {"코드": "DGH", "제강사": "동화", "원산지": "중국"},
@@ -373,4 +389,3 @@ def main():
 if __name__ == "__main__":
     main()
 
-    
