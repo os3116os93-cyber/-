@@ -290,116 +290,20 @@ def main():
                     """, unsafe_allow_html=True)
         render_admin_login()
 
-with tab2:
+    with tab2:
         st.markdown('<div class="customer-title">⚖️ 품질 보증 표준 가이드</div>', unsafe_allow_html=True)
         
-        table_html = """
-        <div class="qc-table-wrapper notranslate" translate="no">
-            <table class="qc-table">
-                <thead>
-                    <tr>
-                        <th>구분</th>
-                        <th>항목</th>
-                        <th>사내 검사 기준</th>
-                        <th>KS 검사 기준</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    <tr>
-                        <td rowspan="2">겉모양</td>
-                        <td>외관 상태</td>
-                        <td>사용상 해로운 결점이 없어야 한다.</td>
-                        <td rowspan="2">사용상 해로운 결점이 없어야 한다.</td>
-                    </tr>
-                    <tr>
-                        <td>마킹</td>
-                        <td>수요가 요청한 마킹 준수</td>
-                    </tr>
-                    <tr>
-                        <td rowspan="2">용접</td>
-                        <td>편평시험</td>
-                        <td>외경 대비 80%이상 누를것</td>
-                        <td rowspan="2">KS 평균 수준: 외경 대비: 30%이상 누를것</td>
-                    </tr>
-                    <tr>
-                        <td>용접 위치</td>
-                        <td>가구용: 모서리 2mm이내</td>
-                    </tr>
-                    <tr>
-                        <td rowspan="15">치수</td>
-                        <td rowspan="7">외경</td>
-                        <td>각형관</td>
-                        <td>각형관 KS D3568 기준</td>
-                    </tr>
-                    <tr>
-                        <td>100mm 미만: ±0.25 mm</td>
-                        <td>100mm 미만: ±1.5mm</td>
-                    </tr>
-                    <tr>
-                        <td>100mm 초과: ± 0.5mm</td>
-                        <td>100mm 초과: ±1.5%</td>
-                    </tr>
-                    <tr>
-                        <td>※가구용: ±0.1mm</td>
-                        <td></td>
-                    </tr>
-                    <tr>
-                        <td>원형관<br>(강제전선관 제외)</td>
-                        <td>원형관 KS D3566 기준</td>
-                    </tr>
-                    <tr>
-                        <td>50mm 미만: ±0.25 mm</td>
-                        <td>50mm 미만: ±0.25 mm</td>
-                    </tr>
-                    <tr>
-                        <td>50mm 이상: ±0.5 mm</td>
-                        <td>50mm 이상: ±0.5%</td>
-                    </tr>
-                    <tr>
-                        <td rowspan="2">요철</td>
-                        <td>100mm 미만: ±1.0mm</td>
-                        <td>100mm 미만: ±1.5mm</td>
-                    </tr>
-                    <tr>
-                        <td>100mm 초과: ±1.5mm</td>
-                        <td>100mm 초과: ±1.5%</td>
-                    </tr>
-                    <tr>
-                        <td>직진도</td>
-                        <td>전체 길이의 0.15% 이내<br>(6000mm 기준 9mm 이하)</td>
-                        <td>전체 길이의 0.3% 이내<br>(6000mm 기준 18mm 이하)</td>
-                    </tr>
-                    <tr>
-                        <td rowspan="3">R값</td>
-                        <td>1.8t 미만: 2t 이하<br>(예: 1.8x2=3.6R 이하)</td>
-                        <td rowspan="3">3t 이하</td>
-                    </tr>
-                    <tr>
-                        <td>1.8t 이상: 2.5t 이하</td>
-                    </tr>
-                    <tr>
-                        <td>가구용: 2.0R 이하</td>
-                    </tr>
-                    <tr>
-                        <td>각도</td>
-                        <td>±1.0°</td>
-                        <td>±1.5°</td>
-                    </tr>
-                    <tr>
-                        <td>길이</td>
-                        <td>각관: +3mm ~ +10mm<br>원형관: +5mm ~ +20mm</td>
-                        <td>주문 길이 이상 일것</td>
-                    </tr>
-                </tbody>
-            </table>
-        </div>
-        """
-        
-        st.markdown(table_html, unsafe_allow_html=True)
+        # 탭 2: 기존 복잡한 HTML 테이블 대신 '기준.png' 이미지 표시
+        img_path = os.path.join(BASE_DIR, "기준.png")
+        if os.path.exists(img_path):
+            st.image(img_path, use_container_width=True)
+        else:
+            st.warning("⚠️ '기준.png' 이미지를 찾을 수 없습니다. 파일 이름을 확인해주세요.")
+            
         st.markdown('<div class="footer-note">※ 기타 수요가 요청사항은 별도 협의에 따른다.</div>', unsafe_allow_html=True)
+
     with tab3:
         st.markdown('<div class="customer-title">🏭 제강사 원산지 분류표</div>', unsafe_allow_html=True)
-        # 데이터 정리 (AGS 원산지 및 누락된 PSC 포함)
         mill_data = [
             {"코드": "PSC", "제강사": "포스코", "원산지": "대한민국"},
             {"코드": "HDS", "제강사": "현대제철", "원산지": "대한민국"},
@@ -449,5 +353,3 @@ with tab2:
 if __name__ == "__main__":
     main()
 
-    
-    
