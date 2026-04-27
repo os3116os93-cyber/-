@@ -294,30 +294,46 @@ def main():
         st.markdown('<div class="customer-title">⚖️ 품질 보증 표준 가이드</div>', unsafe_allow_html=True)
         df_qc = load_data("standard.xlsx", skip=5)
         if df_qc is not None:
+            # 엑셀의 데이터 전처리: nan 제거 및 문자열화
+            df_qc = df_qc.fillna('').astype(str)
             col_count, row_count = len(df_qc.columns), len(df_qc)
-            all_spans = []
             
-            # 병합 로직 수정 부분
+            all_spans = []
             for c in range(col_count):
-                col_data = df_qc.iloc[:, c].fillna('').astype(str).tolist()
-                # '항목' 열(두 번째 열, index 1) 데이터 참조 (외경 위치 확인용)
-                item_col = df_qc.iloc[:, 1].fillna('').astype(str).tolist()
+                col_data = df_qc.iloc[:, c].tolist()
+                item_col = df_qc.iloc[:, 1].tolist() # '항목' 열 참조
                 
                 spans = []
                 i = 0
                 while i < row_count:
                     curr = col_data[i].strip()
                     count = 1
-                    if curr != "":
-                        while i + count < row_count:
-                            # '구분' 열(index 0)일 때, 다음 행의 '항목'이 '외경'이면 병합을 강제로 중단
-                            if c == 0 and "외경" in item_col[i + count]:
-                                break
-                            
-                            if col_data[i + count].strip() == "":
+                    
+                    # '구분' 열(index 0)에 대한 특수 처리
+                    if c == 0:
+                        # 현재 행이 '용접'이거나 빈칸일 때
+                        if curr == "용접" or curr == "":
+                            while i + count < row_count:
+                                next_item = item_col[i + count].strip()
+                                # '항목' 열에 '외경'이 나타나면 '용접' 병합 강제 종료
+                                if "외경" in next_item:
+                                    break
+                                # 다음 칸이 비어있으면 병합 계속
+                                if col_data[i + count].strip() == "":
+                                    count += 1
+                                else:
+                                    break
+                        # 현재 행이 '치수'이거나 그 이후일 때
+                        elif curr == "치수":
+                            while i + count < row_count and col_data[i + count].strip() == "":
                                 count += 1
-                            else:
-                                break
+                    
+                    # 그 외 일반 열의 병합 로직
+                    else:
+                        if curr != "":
+                            while i + count < row_count and col_data[i + count].strip() == "":
+                                count += 1
+                                
                     spans.append(count)
                     for _ in range(count - 1): spans.append(0)
                     i += count
@@ -331,7 +347,14 @@ def main():
                 for c in range(col_count):
                     span_val = all_spans[c][r]
                     if span_val > 0:
-                        cell_content = str(df_qc.iloc[r, c]).replace("nan", "").replace("(", "<br>(")
+                        # 셀 내용 가져오기 (만약 구분 열이 비어있는데 병합 시작점이면 강제로 텍스트 할당 방지)
+                        cell_content = df_qc.iloc[r, c].strip()
+                        
+                        # [오류수정 핵심]: '외경' 라인의 구분 칸이 비어있을 때 '치수'라는 글자가 누락되지 않도록 보완
+                        if c == 0 and "외경" in df_qc.iloc[r, 1] and cell_content == "":
+                             cell_content = "치수"
+                        
+                        cell_content = cell_content.replace("(", "<br>(")
                         table_html += f'<td rowspan="{span_val}">{cell_content}</td>'
                 table_html += '</tr>'
             table_html += '</tbody></table></div>'
@@ -353,7 +376,7 @@ def main():
             {"코드": "CHS", "제강사": "중홍", "원산지": "대만"},
             {"코드": "ANF", "제강사": "안펑", "원산지": "중국"},
             {"코드": "BAO", "제강사": "포두", "원산지": "중국"},
-            {"코드": "JYE", "제강사": "징예", "중국": "중국"},
+            {"코드": "JYE", "제강사": "징예", "원산지": "중국"},
             {"코드": "RSC", "제강사": "일조강철", "원산지": "중국"},
             {"코드": "AGS", "제강사": "안강", "원산지": "중국"},
             {"코드": "DGH", "제강사": "동화", "원산지": "중국"},
