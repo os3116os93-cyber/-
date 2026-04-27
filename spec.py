@@ -293,12 +293,13 @@ def main():
     with tab2:
         st.markdown('<div class="customer-title">⚖️ 품질 보증 표준 가이드</div>', unsafe_allow_html=True)
         
-        # 탭 2: 기존 복잡한 HTML 테이블 대신 '기준.png' 이미지 표시
+        # --- 수정된 부분: HTML 테이블 대신 '기준.png' 이미지 표시 ---
         img_path = os.path.join(BASE_DIR, "기준.png")
         if os.path.exists(img_path):
             st.image(img_path, use_container_width=True)
         else:
-            st.warning("⚠️ '기준.png' 이미지를 찾을 수 없습니다. 파일 이름을 확인해주세요.")
+            st.warning("⚠️ '기준.png' 파일을 찾을 수 없습니다. 깃허브에 이미지 파일이 업로드되었는지 확인해주세요.")
+        # --------------------------------------------------------
             
         st.markdown('<div class="footer-note">※ 기타 수요가 요청사항은 별도 협의에 따른다.</div>', unsafe_allow_html=True)
 
