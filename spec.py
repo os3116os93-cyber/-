@@ -297,7 +297,7 @@ def main():
             df_qc = df_qc.fillna('').astype(str)
             col_count, row_count = len(df_qc.columns), len(df_qc)
             
-            # [수정] 구분 열 병합 위치를 찾기 위한 인덱스 계산 (외경이 포함된 행 찾기)
+            # [구분] 열 병합 위치 계산: '외경' 행 인덱스 찾기
             outer_idx = -1
             for r_idx in range(row_count):
                 if "외경" in df_qc.iloc[r_idx, 1]:
@@ -311,22 +311,22 @@ def main():
             for r in range(row_count):
                 table_html += '<tr>'
                 for c in range(col_count):
-                    # --- [핵심 수정] 구분 열(index 0) 3단계 강제 병합 ---
+                    # --- [구분] 열(첫 번째 열) 강제 3단 병합 로직 ---
                     if c == 0:
-                        if r == 0: # 겉모양 (1~2행)
+                        if r == 0: # 겉모양: 1행~2행
                             table_html += f'<td rowspan="2" style="font-weight:bold;">겉모양</td>'
-                        elif r == 2: # 용접 (3행~외경 전까지)
+                        elif r == 2: # 용접: 3행~외경 전까지 (편평시험, 용접위치 포함)
                             if outer_idx > 2:
                                 table_html += f'<td rowspan="{outer_idx - 2}" style="font-weight:bold;">용접</td>'
-                        elif r == outer_idx: # 치수 (외경행~끝까지)
+                        elif r == outer_idx: # 치수: 외경행부터 끝까지
                             table_html += f'<td rowspan="{row_count - outer_idx}" style="font-weight:bold;">치수</td>'
                         else:
                             continue # 병합된 셀들은 건너뜀
                     
-                    # --- 나머지 열 데이터 처리 (원본 병합 로직 기반 보완) ---
+                    # --- 나머지 열 데이터 처리 ---
                     else:
                         curr_val = df_qc.iloc[r, c].strip()
-                        # 빈 셀인 경우 위에서 이미 병합되었는지 체크하여 중복 생성 방지
+                        # 빈 셀인 경우 위에서 병합되었는지 확인
                         if r > 0 and curr_val == "":
                             is_merged = False
                             for prev_r in range(r-1, -1, -1):
@@ -343,12 +343,11 @@ def main():
 
                         # 병합 크기 계산
                         count = 1
-                        if curr_val != "" or (c != 0): # 첫 열이 아닌 경우 빈 셀도 병합 대상 확인
-                            for next_r in range(r + 1, row_count):
-                                if df_qc.iloc[next_r, c].strip() == "": count += 1
-                                else: break
+                        for next_r in range(r + 1, row_count):
+                            if df_qc.iloc[next_r, c].strip() == "": count += 1
+                            else: break
                         
-                        # [오류방지] 항목(c=1) 열 등에서 '용접'의 빈칸 병합이 '치수' 영역을 침범하지 않게 제어
+                        # [핵심 수정] '용접위치' 아래의 빈 칸 병합이 '외경'(치수 섹션)을 침범하지 않게 차단
                         if c == 1 and r < outer_idx and r + count > outer_idx:
                             count = outer_idx - r
                             
@@ -391,7 +390,7 @@ def main():
             {"코드": "KGM", "제강사": "카이징", "원산지": "중국"},
             {"코드": "LYN", "제강사": "롄강", "원산지": "중국"},
             {"코드": "NTS", "제강사": "신청강", "원산지": "중국"},
-            {"코드": "TNT", "천철": "천철", "원산지": "중국"},
+            {"코드": "TNT", "제강사": "천철", "원산지": "중국"},
             {"코드": "TSS", "제강사": "당산강철", "원산지": "중국"},
             {"코드": "YAN", "제강사": "연산강철", "원산지": "중국"},
         ]
@@ -410,5 +409,4 @@ def main():
 
 if __name__ == "__main__":
     main()
-
 
