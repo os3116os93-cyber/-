@@ -176,8 +176,9 @@ def normalize_search(text):
 
 def nc_search_match(row, query):
     q = normalize_search(query)
+    # 접수일 기준 연도 검색, 생산일/출고일은 제외
     targets = ["고객사", "이슈유형", "제품규격", "생산라인",
-               "이슈상세", "원인", "조치대책", "접수일", "생산일", "출고일"]
+               "이슈상세", "원인", "조치대책", "접수일"]
     return any(q in normalize_search(str(row[c])) for c in targets)
 
 
@@ -651,18 +652,26 @@ def main():
 
                 st.markdown("---")
 
-                # 카드 목록 - 버튼이 카드 전체 너비를 덮어 터치처럼 동작
+                # 카드 목록 - 카드 전체가 클릭 영역 (position:relative + 투명 버튼 오버레이)
                 for orig_idx, row in df_view.iterrows():
                     is_sel = (st.session_state.nc_sel_idx == orig_idx)
                     loss_txt = fmt_num(row["손실비용(원)"], " 원")
-                    border_style = "border:2px solid #FF8C00;" if is_sel else "border:1px solid #DEE2E6;"
-                    shadow_style = "box-shadow:0 2px 10px rgba(255,140,0,0.25);" if is_sel else ""
+                    border_col = "#FF8C00" if is_sel else "#DEE2E6"
+                    border_w   = "2px" if is_sel else "1px"
+                    shadow     = "0 2px 10px rgba(255,140,0,0.25)" if is_sel else "none"
 
-                    # 카드 + 버튼을 하나의 컨테이너처럼 구성
-                    # 버튼을 use_container_width=True로 카드 아래 전체 너비 배치
+                    card_id = "nc_card_" + str(orig_idx)
+
+                    # 카드: position:relative로 버튼 오버레이 기반 마련
                     st.markdown(
-                        "<div style='" + border_style + shadow_style +
-                        "border-radius:10px;padding:12px 16px;margin-bottom:0px;background:white;'>"
+                        "<div id='" + card_id + "' style='"
+                        "position:relative;"
+                        "border:" + border_w + " solid " + border_col + ";"
+                        "box-shadow:" + shadow + ";"
+                        "border-radius:10px;padding:12px 16px 12px 16px;"
+                        "margin-bottom:0px;background:white;'>"
+
+                        # 카드 내용
                         "<div style='display:flex;justify-content:space-between;align-items:flex-start;'>"
                         "<div>"
                         "<span style='font-weight:bold;font-size:14px;margin-right:6px;'>NO." + str(int(row["NO"])) + "</span>"
@@ -679,16 +688,26 @@ def main():
                         "</div>",
                         unsafe_allow_html=True
                     )
-                    # 카드 너비에 맞는 열기/닫기 버튼 (카드처럼 동작)
-                    btn_label = "▲ 닫기" if is_sel else "▼ 열기"
+
+                    # 투명 전체너비 버튼 → 카드 클릭처럼 동작
+                    # 버튼 자체는 카드 아래 붙어있고 use_container_width로 카드 폭과 동일
+                    # CSS로 margin-top:-1px 처리해 카드와 시각적으로 연결
+                    st.markdown(
+                        "<style>"
+                        "div[data-testid='stButton'] > button[kind='secondary']"
+                        "{margin-top:0px!important;}"
+                        "</style>",
+                        unsafe_allow_html=True
+                    )
+                    btn_label = "▲ 닫기" if is_sel else "열기 ▼"
                     if st.button(btn_label, key="nc_sel_" + str(orig_idx), use_container_width=True):
                         st.session_state.nc_sel_idx = None if is_sel else orig_idx
                         st.rerun()
-                    st.markdown("<div style='margin-bottom:8px;'></div>", unsafe_allow_html=True)
+
+                    st.markdown("<div style='margin-bottom:10px;'></div>", unsafe_allow_html=True)
 
                     # 선택된 카드 바로 아래 상세 (PC/모바일 공통)
                     if is_sel:
-                        # df_nc에서 iloc으로 안전하게 참조
                         nc_row = df_nc.iloc[orig_idx]
                         render_nc_detail(nc_row, orig_idx, df_nc)
 
