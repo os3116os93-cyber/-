@@ -344,7 +344,7 @@ def render_nc_add_form(df):
 
 def render_nc_edit_form(df, idx):
     row = df.iloc[idx]
-    st.markdown("### ✏️ 수정 중: NO." + str(row["NO"]) + " - " + str(row["고객사"]))
+    st.markdown("### ✏️ 수정 중: NO." + str(int(row["NO"])) + " - " + str(row["고객사"]))
     updated = {}
 
     st.markdown("**기본 정보**")
@@ -352,7 +352,6 @@ def render_nc_edit_form(df, idx):
     updated["접수일"] = c1.text_input("접수일", value=str(row["접수일"]) if str(row["접수일"]) != "nan" else "", key="nc_edit_접수일")
     updated["생산일"] = c2.text_input("생산일", value=str(row["생산일"]) if str(row["생산일"]) != "nan" else "", key="nc_edit_생산일")
     updated["출고일"] = c3.text_input("출고일", value=str(row["출고일"]) if str(row["출고일"]) != "nan" else "", key="nc_edit_출고일")
-
     c1, c2, c3, c4 = st.columns(4)
     updated["고객사"]   = c1.text_input("고객사",   value=str(row["고객사"])   if str(row["고객사"])   != "nan" else "", key="nc_edit_고객사")
     updated["이슈유형"] = c2.text_input("이슈유형", value=str(row["이슈유형"]) if str(row["이슈유형"]) != "nan" else "", key="nc_edit_이슈유형")
@@ -361,6 +360,7 @@ def render_nc_edit_form(df, idx):
 
     st.markdown("**수량 / 손실**")
     c1, c2, c3, c4, c5 = st.columns(5)
+    # 입력 시 콤마 제거 로직 유지
     updated["출고수량"]       = c1.text_input("출고수량",       value=fmt_num(row["출고수량"]).replace(",",""),       key="nc_edit_출고수량")
     updated["출고중량(kg)"]   = c2.text_input("출고중량(kg)",   value=fmt_num(row["출고중량(kg)"]).replace(",",""),   key="nc_edit_출고중량")
     updated["클레임수량"]     = c3.text_input("클레임수량",     value=fmt_num(row["클레임수량"]).replace(",",""),     key="nc_edit_클레임수량")
@@ -374,12 +374,24 @@ def render_nc_edit_form(df, idx):
 
     b1, b2 = st.columns([1, 5])
     if b1.button("저장", key="nc_edit_save"):
+        # 핵심 수정: 값을 넣기 전에 모든 숫자 컬럼을 포함하여 타입을 object로 변환 (충돌 방지)
+        num_cols = ["출고수량", "출고중량(kg)", "클레임수량", "클레임중량(kg)", "손실비용(원)"]
+        for col in num_cols:
+            df[col] = df[col].astype(object)
+            
+        # 값 대입
         for col, val in updated.items():
             df.at[idx, col] = val
+            
+        # 다시 숫자 타입으로 안전하게 변환
+        for col in num_cols:
+            df[col] = pd.to_numeric(df[col].astype(str).str.replace(",", ""), errors="coerce")
+            
         if save_nc_data(df):
             st.session_state.nc_edit_idx = None
             st.success("수정이 완료되었습니다!")
             st.rerun()
+            
     if b2.button("취소", key="nc_edit_cancel"):
         st.session_state.nc_edit_idx = None
         st.rerun()
