@@ -2,6 +2,7 @@ import streamlit as st
 import pandas as pd
 import os
 import base64
+from openpyxl import load_workbook
 
 try:
     BASE_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -52,192 +53,93 @@ def load_data(file_name, skip=0):
         return None
 
 
+@st.cache_data(ttl=300)
+def load_standard_with_merge(file_name, skip=5):
+    """openpyxl로 병합셀 정보까지 읽어서 HTML 테이블 생성"""
+    file_path = os.path.join(BASE_DIR, file_name)
+    if not os.path.exists(file_path):
+        st.error(f"파일을 찾을 수 없습니다: {file_name}")
+        return None
+    try:
+        wb = load_workbook(file_path, data_only=True)
+        ws = wb.active
+
+        # 병합셀 범위 수집
+        merge_map = {}   # (row, col) -> (rowspan, colspan)
+        skip_cells = set()  # 병합으로 숨겨진 셀
+        for merged in ws.merged_cells.ranges:
+            min_r, min_c = merged.min_row, merged.min_col
+            max_r, max_c = merged.max_row, merged.max_col
+            rowspan = max_r - min_r + 1
+            colspan = max_c - min_c + 1
+            merge_map[(min_r, min_c)] = (rowspan, colspan)
+            for r in range(min_r, max_r + 1):
+                for c in range(min_c, max_c + 1):
+                    if not (r == min_r and c == min_c):
+                        skip_cells.add((r, c))
+
+        # skip행 이후부터 읽기
+        all_rows = list(ws.iter_rows(values_only=True))
+        data_rows = all_rows[skip:]
+        header = [str(v) if v is not None else "" for v in data_rows[0]]
+        body = data_rows[1:]
+
+        # 헤더 행 번호 (1-based, openpyxl 기준)
+        header_row_idx = skip + 1  # 헤더가 있는 실제 시트 행
+
+        # ※ 포함 행 제거
+        filtered_body = []
+        filtered_row_indices = []
+        for i, row in enumerate(body):
+            first = str(row[0]) if row[0] is not None else ""
+            if "※" not in first:
+                filtered_body.append(row)
+                filtered_row_indices.append(header_row_idx + 1 + i)  # 실제 시트 행번호
+
+        # HTML 생성
+        table_html = """<div class="qc-table-wrapper notranslate" translate="no">
+<table class="qc-table"><thead><tr>"""
+        for h in header:
+            table_html += f"<th>{h}</th>"
+        table_html += "</tr></thead><tbody>"
+
+        for i, (row, sheet_r) in enumerate(zip(filtered_body, filtered_row_indices)):
+            table_html += "<tr>"
+            for j, val in enumerate(row):
+                sheet_c = j + 1  # 1-based col
+                if (sheet_r, sheet_c) in skip_cells:
+                    continue
+                cell_val = str(val).strip() if val is not None else ""
+                cell_val = cell_val.replace("None", "").replace("nan", "")
+                cell_val = cell_val.replace("(", "<br>(")
+                rs, cs = 1, 1
+                if (sheet_r, sheet_c) in merge_map:
+                    rs, cs = merge_map[(sheet_r, sheet_c)]
+                    # rs 조정: ※행이 제거되었으므로 실제 표시되는 행 수만큼만
+                    actual_rs = sum(
+                        1 for k in range(sheet_r, sheet_r + rs)
+                        if k == header_row_idx + 1 or k in filtered_row_indices
+                    )
+                    rs = max(actual_rs, 1)
+                attrs = ""
+                if rs > 1:
+                    attrs += f" rowspan="{rs}""
+                if cs > 1:
+                    attrs += f" colspan="{cs}""
+                table_html += f"<td{attrs}>{cell_val}</td>"
+            table_html += "</tr>"
+
+        table_html += "</tbody></table></div>"
+        return table_html
+    except Exception as e:
+        st.error(f"standard.xlsx 병합 로드 오류: {e}")
+        return None
+
+
 def save_customer_data(df):
     file_path = os.path.join(BASE_DIR, EXCEL_FILE)
     df.to_excel(file_path, index=False)
     load_data.clear()
-
-
-def build_standard_table():
-    """
-    이미지와 엑셀 구조를 정확히 분석하여 병합셀 HTML 테이블 생성.
-    엑셀 row 6=헤더, row 7~27=데이터, row 28=※주석(제외)
-    컬럼: 구분 | 항목 | 사내 검사 기준 | KS 검사 기준
-    """
-    td = 'style="padding:8px 12px; border:1px solid #DEE2E6; text-align:center; vertical-align:middle; background:white; color:#000; font-size:12px; white-space:pre-wrap;"'
-    th = 'style="padding:8px 12px; border:1px solid #DEE2E6; text-align:center; vertical-align:middle; background:#F8F9FA; color:#000; font-weight:bold; font-size:12px;"'
-
-    def cell(content, rs=1, cs=1):
-        r = f' rowspan="{rs}"' if rs > 1 else ""
-        c = f' colspan="{cs}"' if cs > 1 else ""
-        return f"<td {td}{r}{c}>{content}</td>"
-
-    rows = []
-
-    # 헤더
-    rows.append(f"<tr><th {th}>구분</th><th {th}>항목</th><th {th}>사내 검사 기준</th><th {th}>KS 검사 기준</th></tr>")
-
-    # ── 겉모양 (2행) ──────────────────────────────────────
-    rows.append(
-        "<tr>"
-        + cell("겉모양", rs=2)
-        + cell("외관 상태")
-        + cell("사용상 해로운 결점이 없어야 한다.")
-        + cell("사용상 해로운 결점이 없어야 한다.", rs=2)
-        + "</tr>"
-    )
-    rows.append(
-        "<tr>"
-        + cell("마킹")
-        + cell("수요가 요청한 마킹 준수")
-        + "</tr>"
-    )
-
-    # ── 용접 (2행) ────────────────────────────────────────
-    rows.append(
-        "<tr>"
-        + cell("용접", rs=2)
-        + cell("편평시험")
-        + cell("외경 대비 80%이상 누를것")
-        + cell("KS 평균 수준: 외경 대비: 30%이상 누를것", rs=2)
-        + "</tr>"
-    )
-    rows.append(
-        "<tr>"
-        + cell("용접 위치")
-        + cell("가구용 : 모서리 2mm이내")
-        + "</tr>"
-    )
-
-    # ── 치수 - 외경 (8행, row11~18) ──────────────────────
-    # 구분: 치수는 row11~27 (17행) 전체 병합
-    # 항목: 외경은 row11~18 (8행) 병합
-    rows.append(
-        "<tr>"
-        + cell("치수", rs=17)          # row11~27
-        + cell("외경", rs=8)           # row11~18
-        + cell("각형관")
-        + cell("각형관 KS D3568 기준")
-        + "</tr>"
-    )
-    rows.append(
-        "<tr>"
-        + cell("100mm 미만: ±0.25 mm")
-        + cell("100mm 미만: ±1.5mm")
-        + "</tr>"
-    )
-    rows.append(
-        "<tr>"
-        + cell("100mm 초과: ± 0.5mm")
-        + cell("100mm 초과: ±1.5%", rs=2)   # row13~14 병합
-        + "</tr>"
-    )
-    rows.append(
-        "<tr>"
-        + cell("※ 가구용: ±0.1mm")
-        # KS 기준 셀은 위 row13에서 rowspan=2로 처리됨
-        + "</tr>"
-    )
-    # row15: 빈 행 (구분/항목 이미 병합 중)
-    rows.append(
-        "<tr>"
-        + cell("")
-        + cell("")
-        + "</tr>"
-    )
-    rows.append(
-        "<tr>"
-        + cell("원형관\n(강제전선관 제외)")
-        + cell("원형관 KS D3566 기준")
-        + "</tr>"
-    )
-    rows.append(
-        "<tr>"
-        + cell("50mm 미만: ±0.25 mm")
-        + cell("50mm 미만: ±0.25 mm")
-        + "</tr>"
-    )
-    rows.append(
-        "<tr>"
-        + cell("50mm 이상: ±0.5 mm")
-        + cell("50mm 이상: ±0.5%")
-        + "</tr>"
-    )
-
-    # ── 치수 - 요철 (2행, row19~20) ─────────────────────
-    rows.append(
-        "<tr>"
-        + cell("요철", rs=2)
-        + cell("100mm 미만: ±1.0mm")
-        + cell("100mm 미만: ±1.5mm")
-        + "</tr>"
-    )
-    rows.append(
-        "<tr>"
-        + cell("100mm 초과: ±1.5mm")
-        + cell("100mm 초과: ±1.5%")
-        + "</tr>"
-    )
-
-    # ── 치수 - 직진도 (2행, row21~22) ───────────────────
-    rows.append(
-        "<tr>"
-        + cell("직진도", rs=2)
-        + cell("전체 길이의 0.15% 이내\n(6000mm 기준 9mm 이하)")
-        + cell("전체 길이의 0.3% 이내\n(6000mm 기준 18mm 이하)", rs=2)
-        + "</tr>"
-    )
-    rows.append(
-        "<tr>"
-        + cell("1.8t 미만: 2 t 이하\n(예:1.8x2=3.6R 이하)")
-        + "</tr>"
-    )
-
-    # ── 치수 - R값 (2행, row23~24) ──────────────────────
-    rows.append(
-        "<tr>"
-        + cell("R값", rs=2)
-        + cell("1.8t 이상: 2.5 t 이하")
-        + cell("3 t 이하", rs=2)
-        + "</tr>"
-    )
-    rows.append(
-        "<tr>"
-        + cell("가구용: 2.0R 이하")
-        + "</tr>"
-    )
-
-    # ── 치수 - 각도 (1행, row25) ────────────────────────
-    rows.append(
-        "<tr>"
-        + cell("각도")
-        + cell("±1.0˚")
-        + cell("±1.5˚")
-        + "</tr>"
-    )
-
-    # ── 치수 - 길이 (2행, row26~27) ─────────────────────
-    rows.append(
-        "<tr>"
-        + cell("길이", rs=2)
-        + cell("각관: +3mm ~ +10mm")
-        + cell("주문 길이 이상 일것", rs=2)
-        + "</tr>"
-    )
-    rows.append(
-        "<tr>"
-        + cell("원형관: +5mm ~ +20mm")
-        + "</tr>"
-    )
-
-    table_html = (
-        '<div class="qc-table-wrapper notranslate" translate="no">'
-        '<table class="qc-table" style="border-collapse:collapse; width:100%;">'
-        "<thead>" + rows[0] + "</thead>"
-        "<tbody>" + "".join(rows[1:]) + "</tbody>"
-        "</table></div>"
-    )
-    return table_html
 
 
 LOGO_FILENAME = os.path.join(BASE_DIR, "hanjin_logo.png")
@@ -284,6 +186,7 @@ st.markdown("""
     font-size: clamp(10px, 2.2vw, 12px);
     border: 1px solid #DEE2E6;
     table-layout: auto;
+    white-space: nowrap;
     width: 100%;
 }
 .qc-table th {
@@ -325,17 +228,16 @@ st.markdown("""
 
 def render_header():
     if logo_base64:
-        logo_img_html = '<img src="data:image/png;base64,' + logo_base64 + '" class="brand-logo">'
+        logo_img_html = f'<img src="data:image/png;base64,{logo_base64}" class="brand-logo">'
     else:
         logo_img_html = '<div style="color:#ccc; font-size:12px;">[한진철관 로고 미검출]</div>'
     admin_badge = '<span class="admin-badge">🔓 관리자 모드</span>' if st.session_state.is_admin else ""
-    st.markdown(
-        '<div class="header-wrapper">'
-        '<div class="logo-container">' + logo_img_html + '</div>'
-        '<div class="team-name-fixed">품질기술팀' + admin_badge + '</div>'
-        '</div>',
-        unsafe_allow_html=True
-    )
+    st.markdown(f"""
+    <div class="header-wrapper">
+        <div class="logo-container">{logo_img_html}</div>
+        <div class="team-name-fixed">품질기술팀{admin_badge}</div>
+    </div>
+    """, unsafe_allow_html=True)
 
 
 def render_admin_login():
@@ -365,7 +267,7 @@ def render_add_form(df):
     for pair in col_pairs:
         form_cols = st.columns(2)
         for j, col_name in enumerate(pair):
-            new_values[col_name] = form_cols[j].text_input(col_name, key="add_" + col_name)
+            new_values[col_name] = form_cols[j].text_input(col_name, key=f"add_{col_name}")
     c1, c2 = st.columns([1, 5])
     if c1.button("저장", key="add_save"):
         if not new_values.get(cols[0], "").strip():
@@ -375,7 +277,7 @@ def render_add_form(df):
             updated_df = pd.concat([df, new_row], ignore_index=True)
             save_customer_data(updated_df)
             st.session_state.show_add_form = False
-            st.success("'" + new_values[cols[0]] + "' 고객사가 추가되었습니다!")
+            st.success(f"'{new_values[cols[0]]}' 고객사가 추가되었습니다!")
             st.rerun()
     if c2.button("취소", key="add_cancel"):
         st.session_state.show_add_form = False
@@ -384,7 +286,7 @@ def render_add_form(df):
 
 def render_edit_form(df, idx):
     row = df.iloc[idx]
-    st.markdown("### 수정 중: " + str(row.iloc[0]))
+    st.markdown(f"### 수정 중: {row.iloc[0]}")
     cols = df.columns.tolist()
     updated_values = {}
     col_pairs = [cols[i:i+2] for i in range(0, len(cols), 2)]
@@ -392,7 +294,7 @@ def render_edit_form(df, idx):
         form_cols = st.columns(2)
         for j, col_name in enumerate(pair):
             current_val = str(row[col_name]) if pd.notna(row[col_name]) and str(row[col_name]) != "nan" else ""
-            updated_values[col_name] = form_cols[j].text_input(col_name, value=current_val, key="edit_" + col_name)
+            updated_values[col_name] = form_cols[j].text_input(col_name, value=current_val, key=f"edit_{col_name}")
     c1, c2 = st.columns([1, 5])
     if c1.button("저장", key="edit_save"):
         for col_name, val in updated_values.items():
@@ -412,7 +314,7 @@ def main():
 
     tab1, tab2, tab3 = st.tabs(["📄 고객 사양서", "⚖️ 품질 보증 기준", "🏭 제강사 정보"])
 
-    # ── 탭1: 고객 사양서 ──────────────────────────────────
+    # ── 탭1: 고객 사양서 ──
     with tab1:
         df_cust = load_data(EXCEL_FILE)
         if df_cust is not None:
@@ -425,13 +327,7 @@ def main():
                 if st.sidebar.button("➕ 고객사 추가", key="open_add_form"):
                     st.session_state.show_add_form = True
                     st.session_state.edit_idx = None
-            sel_idx = st.sidebar.radio(
-                "업체를 선택하세요:",
-                options=list(range(len(df_cust))),
-                format_func=lambda i: customer_list[i],
-                index=None,
-                key="customer_radio"
-            )
+            sel_idx = st.sidebar.radio("업체를 선택하세요:", options=list(range(len(df_cust))), format_func=lambda i: customer_list[i], index=None, key="customer_radio")
             if sel_idx is None and not st.session_state.show_add_form and st.session_state.edit_idx is None:
                 st.markdown('<div class="guide-text">좌상단 >> 화살표를 눌러 고객사를 선택 하십시오.</div>', unsafe_allow_html=True)
             if st.session_state.is_admin and st.session_state.show_add_form:
@@ -440,7 +336,7 @@ def main():
                 render_edit_form(df_cust, st.session_state.edit_idx)
             elif sel_idx is not None:
                 row = df_cust.iloc[sel_idx]
-                st.markdown('<div class="customer-title">■ ' + str(row.iloc[0]) + '</div>', unsafe_allow_html=True)
+                st.markdown(f'<div class="customer-title">■ {row.iloc[0]}</div>', unsafe_allow_html=True)
                 if st.session_state.is_admin:
                     a1, a2, _ = st.columns([1, 1, 8])
                     if a1.button("수정", key="edit_btn"):
@@ -448,18 +344,18 @@ def main():
                         st.session_state.show_add_form = False
                         st.rerun()
                     if a2.button("삭제", key="delete_btn"):
-                        st.session_state["confirm_delete_" + str(sel_idx)] = True
-                    if st.session_state.get("confirm_delete_" + str(sel_idx), False):
-                        st.warning("**'" + str(row.iloc[0]) + "'** 고객사를 정말 삭제하시겠습니까?")
+                        st.session_state[f"confirm_delete_{sel_idx}"] = True
+                    if st.session_state.get(f"confirm_delete_{sel_idx}", False):
+                        st.warning(f"**'{row.iloc[0]}'** 고객사를 정말 삭제하시겠습니까?")
                         d1, d2 = st.columns([1, 5])
                         if d1.button("확인 삭제", key="confirm_del"):
                             updated_df = df_cust.drop(index=sel_idx).reset_index(drop=True)
                             save_customer_data(updated_df)
-                            st.session_state["confirm_delete_" + str(sel_idx)] = False
+                            st.session_state[f"confirm_delete_{sel_idx}"] = False
                             st.success("삭제되었습니다.")
                             st.rerun()
                         if d2.button("취소", key="cancel_del"):
-                            st.session_state["confirm_delete_" + str(sel_idx)] = False
+                            st.session_state[f"confirm_delete_{sel_idx}"] = False
                             st.rerun()
                 for i in range(1, len(row.index)):
                     col_n = row.index[i]
@@ -467,22 +363,23 @@ def main():
                     val = str(raw).strip() if pd.notna(raw) and str(raw).strip() not in ("", "nan") else "-"
                     is_sp = any(k in str(col_n) for k in ["특이사항", "주의", "마킹", "포장"])
                     c = "#E63946" if is_sp else "#495057"
-                    st.markdown(
-                        '<div class="notranslate" translate="no" style="display:flex; border:1px solid #DEE2E6; margin-bottom:-1px;">'
-                        '<div style="background-color:#F8F9FA; width:85px; min-width:85px; padding:10px 4px; font-weight:bold; color:' + c + '; border-right:1px solid #DEE2E6; display:flex; align-items:center; justify-content:center; text-align:center; font-size:12px; line-height:1.2; word-break:keep-all;">' + str(col_n) + '</div>'
-                        '<div class="notranslate" translate="no" style="flex:1; padding:10px; background-color:white; font-size:13.5px; line-height:1.4; color:#212529; font-weight:500; word-break:break-all;">' + val + '</div>'
-                        '</div>',
-                        unsafe_allow_html=True
-                    )
+                    st.markdown(f"""
+                    <div class="notranslate" translate="no" style="display: flex; border: 1px solid #DEE2E6; margin-bottom: -1px;">
+                        <div style="background-color: #F8F9FA; width: 85px; min-width: 85px; padding: 10px 4px; font-weight: bold; color: {c}; border-right: 1px solid #DEE2E6; display: flex; align-items: center; justify-content: center; text-align: center; font-size: 12px; line-height: 1.2; word-break: keep-all;">{col_n}</div>
+                        <div class="notranslate" translate="no" style="flex: 1; padding: 10px; background-color: white; font-size: 13.5px; line-height: 1.4; color: #212529; font-weight: 500; word-break: break-all;">{val}</div>
+                    </div>
+                    """, unsafe_allow_html=True)
         render_admin_login()
 
-    # ── 탭2: 품질 보증 기준 (병합셀 정확 재현) ───────────
+    # ── 탭2: 품질 보증 기준 (openpyxl 병합셀 정확 재현) ──
     with tab2:
         st.markdown('<div class="customer-title">⚖️ 품질 보증 표준 가이드</div>', unsafe_allow_html=True)
-        st.markdown(build_standard_table(), unsafe_allow_html=True)
-        st.markdown('<div class="footer-note">※ 기타 수요가 요청사항은 별도 협의에 따른다.</div>', unsafe_allow_html=True)
+        table_html = load_standard_with_merge("standard.xlsx", skip=5)
+        if table_html:
+            st.markdown(table_html, unsafe_allow_html=True)
+            st.markdown('<div class="footer-note">※ 기타 수요가 요청사항은 별도 협의에 따른다.</div>', unsafe_allow_html=True)
 
-    # ── 탭3: 제강사 정보 ──────────────────────────────────
+    # ── 탭3: 제강사 정보 ──
     with tab3:
         st.markdown('<div class="customer-title">🏭 제강사 원산지 분류표</div>', unsafe_allow_html=True)
         mill_data = [
@@ -528,8 +425,8 @@ def main():
             ]
         mill_html = '<div class="qc-table-wrapper notranslate" translate="no"><table class="qc-table"><thead><tr><th>코드</th><th>제강사</th><th>원산지</th></tr></thead><tbody>'
         for _, r in df_mill.iterrows():
-            o_style = ' style="color:#007BFF; font-weight:bold;"' if r["원산지"] == "대한민국" else ""
-            mill_html += '<tr><td style="font-weight:bold;">' + r["코드"] + '</td><td>' + r["제강사"] + '</td><td' + o_style + '>' + r["원산지"] + '</td></tr>'
+            o_style = 'style="color:#007BFF; font-weight:bold;"' if r["원산지"] == "대한민국" else ""
+            mill_html += f'<tr><td style="font-weight:bold;">{r["코드"]}</td><td>{r["제강사"]}</td><td {o_style}>{r["원산지"]}</td></tr>'
         mill_html += '</tbody></table></div>'
         st.markdown(mill_html, unsafe_allow_html=True)
         st.markdown('<div class="footer-note">※ 제강사 정보는 검색으로 손쉬운 확인이 가능합니다.</div>', unsafe_allow_html=True)
@@ -537,4 +434,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-
