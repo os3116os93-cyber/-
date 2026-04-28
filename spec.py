@@ -181,13 +181,16 @@ st.markdown("""
 .qc-table{border-collapse:collapse;margin-top:10px;font-size:clamp(10px,2.2vw,12px);border:1px solid #DEE2E6;table-layout:auto;width:100%;}
 .qc-table th{padding:clamp(4px,1.5vw,8px) clamp(6px,2vw,12px);border:1px solid #DEE2E6;text-align:center!important;vertical-align:middle!important;background-color:#F8F9FA!important;color:#000!important;font-weight:bold!important;}
 .qc-table td{padding:clamp(4px,1.5vw,8px) clamp(6px,2vw,12px);border:1px solid #DEE2E6;text-align:center!important;vertical-align:middle!important;background-color:white!important;color:#000!important;}
-.nc-card{border:1px solid #DEE2E6;border-radius:8px;padding:14px 16px;margin-bottom:8px;background:white;cursor:pointer;transition:box-shadow 0.15s;}
-.nc-card:hover{box-shadow:0 2px 8px rgba(0,0,0,0.1);}
-.nc-card-selected{border-color:#FF8C00;box-shadow:0 2px 8px rgba(255,140,0,0.25);}
-.nc-badge{display:inline-block;padding:2px 8px;border-radius:12px;font-size:11px;font-weight:bold;background:#FFF3E0;color:#E65100;margin-right:6px;}
-.nc-detail-row{display:flex;border:1px solid #DEE2E6;margin-bottom:-1px;}
-.nc-detail-label{background:#F8F9FA;width:110px;min-width:110px;padding:10px 8px;font-weight:bold;color:#495057;border-right:1px solid #DEE2E6;display:flex;align-items:center;justify-content:center;text-align:center;font-size:12px;line-height:1.3;word-break:keep-all;}
-.nc-detail-value{flex:1;padding:10px 12px;background:white;font-size:13px;line-height:1.5;color:#212529;word-break:break-all;}
+.nc-card{border:1px solid #DEE2E6;border-radius:10px;padding:14px 16px;margin-bottom:10px;background:white;transition:box-shadow 0.15s;}
+.nc-card:hover{box-shadow:0 2px 10px rgba(0,0,0,0.1);}
+.nc-card-selected{border-color:#FF8C00!important;border-width:2px!important;box-shadow:0 2px 10px rgba(255,140,0,0.3);}
+.nc-badge{display:inline-block;padding:3px 10px;border-radius:12px;font-size:11px;font-weight:bold;background:#FFF3E0;color:#E65100;margin-right:4px;}
+.nc-badge-line{display:inline-block;padding:2px 8px;border-radius:10px;font-size:11px;font-weight:bold;background:#E8F5E9;color:#2E7D32;}
+.nc-detail-box{background:white;border:1px solid #DEE2E6;border-radius:10px;overflow:hidden;margin-top:8px;}
+.nc-detail-row{display:flex;border-bottom:1px solid #F0F0F0;}
+.nc-detail-row:last-child{border-bottom:none;}
+.nc-detail-label{background:#F8F9FA;width:100px;min-width:100px;padding:10px 8px;font-weight:bold;color:#495057;border-right:1px solid #DEE2E6;display:flex;align-items:center;justify-content:center;text-align:center;font-size:12px;line-height:1.3;word-break:keep-all;}
+.nc-detail-value{flex:1;padding:10px 14px;background:white;font-size:13px;line-height:1.6;color:#212529;word-break:break-all;white-space:pre-wrap;}
 .nc-loss{color:#E63946;font-weight:bold;}
 .footer-note{font-size:12.5px;color:#666;margin-top:15px;font-weight:500;}
 .guide-text{display:none;}
@@ -382,40 +385,51 @@ def render_nc_edit_form(df, idx):
         st.rerun()
 
 
-def render_nc_detail(row, idx, df):
-    """부적합 상세 보기"""
-    st.markdown("---")
+def normalize_search(text):
+    """검색어 정규화: 공백 제거 + 소문자 변환 (조관1 == 조관 1 처리)"""
+    return str(text).replace(" ", "").lower()
 
-    def detail_row(label, value, loss=False):
-        v_style = " nc-loss" if loss else ""
+
+def nc_search_match(row, query):
+    """공백 무시 통합 검색 매칭"""
+    q = normalize_search(query)
+    targets = ["고객사", "이슈유형", "제품규격", "생산라인", "이슈상세", "원인", "조치대책"]
+    return any(q in normalize_search(row[c]) for c in targets)
+
+
+def render_nc_detail(row, idx, df):
+    """부적합 상세 보기 - 박스 UI"""
+
+    def dr(label, value, loss=False):
+        v_cls = " nc-loss" if loss else ""
+        val_str = str(value) if str(value) not in ("nan", "-", "") else "-"
         return (
             "<div class=\"nc-detail-row\">"
             "<div class=\"nc-detail-label\">" + label + "</div>"
-            "<div class=\"nc-detail-value" + v_style + "\">" + str(value) + "</div>"
+            "<div class=\"nc-detail-value" + v_cls + "\">" + val_str + "</div>"
             "</div>"
         )
 
-    html = ""
-    html += detail_row("NO", int(row["NO"]))
-    html += detail_row("접수일", row["접수일"])
-    html += detail_row("고객사", row["고객사"])
-    html += detail_row("이슈유형", "<span class=\"nc-badge\">" + str(row["이슈유형"]) + "</span>")
-    html += detail_row("제품규격", row["제품규격"])
-    html += detail_row("생산라인", row["생산라인"])
-    html += detail_row("생산일", row["생산일"])
-    html += detail_row("출고일", row["출고일"])
-    html += detail_row("출고수량", fmt_num(row["출고수량"], "본"))
-    html += detail_row("출고중량", fmt_num(row["출고중량(kg)"], " kg"))
-    html += detail_row("클레임수량", fmt_num(row["클레임수량"], "본"))
-    html += detail_row("클레임중량", fmt_num(row["클레임중량(kg)"], " kg"))
-    html += detail_row("손실비용", fmt_num(row["손실비용(원)"], " 원"), loss=True)
-    html += detail_row("이슈상세", str(row["이슈상세"]).replace("\n", "<br>"))
-    html += detail_row("원인", str(row["원인"]).replace("\n", "<br>"))
-    html += detail_row("조치대책", str(row["조치대책"]).replace("\n", "<br>"))
-
+    html = "<div class=\"nc-detail-box\">"
+    html += dr("NO", int(row["NO"]))
+    html += dr("접수일", row["접수일"])
+    html += dr("고객사", str(row["고객사"]))
+    html += dr("이슈유형", "<span class=\"nc-badge\">" + str(row["이슈유형"]) + "</span>")
+    html += dr("제품규격", str(row["제품규격"]))
+    html += dr("생산라인", "<span class=\"nc-badge-line\">" + str(row["생산라인"]) + "</span>")
+    html += dr("생산일", row["생산일"])
+    html += dr("출고일", row["출고일"])
+    html += dr("출고수량", fmt_num(row["출고수량"], "본"))
+    html += dr("출고중량", fmt_num(row["출고중량(kg)"], " kg"))
+    html += dr("클레임수량", fmt_num(row["클레임수량"], "본"))
+    html += dr("클레임중량", fmt_num(row["클레임중량(kg)"], " kg"))
+    html += dr("손실비용", fmt_num(row["손실비용(원)"], " 원"), loss=True)
+    html += dr("이슈상세", str(row["이슈상세"]).replace("\n", "<br>"))
+    html += dr("원인", str(row["원인"]).replace("\n", "<br>"))
+    html += dr("조치대책", str(row["조치대책"]).replace("\n", "<br>"))
+    html += "</div>"
     st.markdown(html, unsafe_allow_html=True)
 
-    # 관리자 수정/삭제
     if st.session_state.is_admin:
         st.markdown("")
         a1, a2 = st.columns([1, 1])
@@ -425,7 +439,6 @@ def render_nc_detail(row, idx, df):
             st.rerun()
         if a2.button("🗑️ 삭제", key="nc_del_btn"):
             st.session_state["nc_confirm_del_" + str(idx)] = True
-
         if st.session_state.get("nc_confirm_del_" + str(idx), False):
             st.warning("**NO." + str(int(row["NO"])) + " - " + str(row["고객사"]) + "** 를 정말 삭제하시겠습니까?")
             d1, d2 = st.columns([1, 5])
@@ -555,72 +568,87 @@ def main():
         with tab4:
             st.markdown("<div class=\"customer-title\">🚨 부적합 통합 관리 대장</div>", unsafe_allow_html=True)
             df_nc = load_nc_data()
-
             if df_nc is None:
                 st.stop()
 
-            # 추가 폼
             if st.session_state.nc_show_add:
                 render_nc_add_form(df_nc)
                 st.stop()
-
-            # 수정 폼
             if st.session_state.nc_edit_idx is not None:
                 render_nc_edit_form(df_nc, st.session_state.nc_edit_idx)
                 st.stop()
 
-            # 검색 + 추가 버튼
+            # ── 검색바 + 추가버튼 ──────────────────────────────
             col_s, col_b = st.columns([5, 1])
-            search = col_s.text_input("🔍 통합 검색 (고객사 / 이슈유형 / 제품규격 / 이슈상세)",
-                                       placeholder="예: 백청, 유민철강, HGI...", key="nc_search")
+            search = col_s.text_input(
+                "🔍 통합 검색 (공백 무시: 조관1 = 조관 1)",
+                placeholder="예: 백청, 유민철강, 조관1, HGI...",
+                key="nc_search"
+            )
             if col_b.button("➕ 추가", key="nc_add_btn"):
                 st.session_state.nc_show_add = True
                 st.session_state.nc_sel_idx = None
                 st.rerun()
 
-            # 검색 필터
+            # ── 검색 필터 (공백 무시 매칭) ─────────────────────
             df_view = df_nc.copy()
             if search:
-                mask = df_view.apply(
-                    lambda r: any(search.lower() in str(r[c]).lower()
-                                  for c in ["고객사", "이슈유형", "제품규격", "이슈상세", "원인", "조치대책"]), axis=1)
-                df_view = df_view[mask]
+                df_view = df_view[df_view.apply(lambda r: nc_search_match(r, search), axis=1)]
 
             if df_view.empty:
                 st.info("검색 결과가 없습니다.")
             else:
-                st.markdown(f"**총 {len(df_view)}건**")
+                total_loss = df_view["손실비용(원)"].sum()
+                c1, c2 = st.columns([1, 1])
+                c1.markdown(f"**총 {len(df_view)}건**")
+                c2.markdown(
+                    "<div style='text-align:right;color:#E63946;font-weight:bold;font-size:14px;'>"
+                    "손실 합계: " + fmt_num(total_loss, " 원") + "</div>",
+                    unsafe_allow_html=True
+                )
 
-                # 목록 + 상세 분리 레이아웃 (PC: 좌우, 모바일: 상하)
-                left, right = st.columns([2, 3])
+                # 상세 선택 상태
+                sel_idx = st.session_state.nc_sel_idx
+                sel_in_view = sel_idx is not None and sel_idx in df_view.index
 
-                with left:
-                    st.markdown("**목록**")
-                    for i, (orig_idx, row) in enumerate(df_view.iterrows()):
-                        is_sel = st.session_state.nc_sel_idx == orig_idx
-                        card_class = "nc-card nc-card-selected" if is_sel else "nc-card"
-                        loss_txt = fmt_num(row["손실비용(원)"], " 원") if not pd.isna(row["손실비용(원)"]) else "-"
-                        card_html = (
-                            "<div class=\"" + card_class + "\">"
-                            "<div style=\"font-weight:bold;font-size:13px;margin-bottom:4px;\">"
-                            "NO." + str(int(row["NO"])) + " <span class=\"nc-badge\">" + str(row["이슈유형"]) + "</span>"
-                            "</div>"
-                            "<div style=\"font-size:12px;color:#555;\">" + str(row["고객사"]) + " | " + str(row["접수일"]) + "</div>"
-                            "<div style=\"font-size:12px;color:#777;margin-top:2px;\">" + str(row["제품규격"]) + "</div>"
-                            "<div style=\"font-size:12px;color:#E63946;margin-top:2px;\">손실: " + loss_txt + "</div>"
-                            "</div>"
-                        )
-                        st.markdown(card_html, unsafe_allow_html=True)
-                        if st.button("상세 보기", key="nc_sel_" + str(orig_idx)):
-                            st.session_state.nc_sel_idx = orig_idx
-                            st.rerun()
+                # ── PC 레이아웃: 좌(목록) 우(상세) ────────────
+                # ── 모바일: 카드 클릭 → 카드 바로 아래 상세 표시
+                # Streamlit은 CSS 분기가 어려우므로
+                # 모바일 대응: 상세를 목록 아래에 expander로 항상 노출
+                for orig_idx, row in df_view.iterrows():
+                    is_sel = (sel_idx == orig_idx)
+                    card_class = "nc-card nc-card-selected" if is_sel else "nc-card"
+                    loss_txt = fmt_num(row["손실비용(원)"], " 원") if not pd.isna(row["손실비용(원)"]) else "-"
 
-                with right:
-                    if st.session_state.nc_sel_idx is not None and st.session_state.nc_sel_idx in df_view.index:
-                        sel_row = df_nc.loc[st.session_state.nc_sel_idx]
-                        render_nc_detail(sel_row, st.session_state.nc_sel_idx, df_nc)
-                    else:
-                        st.info("좌측 목록에서 항목을 선택하세요.")
+                    card_html = (
+                        "<div class=\"" + card_class + "\">"
+                        "<div style='display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:4px;'>"
+                        "<div>"
+                        "<span style='font-weight:bold;font-size:14px;margin-right:6px;'>NO." + str(int(row["NO"])) + "</span>"
+                        "<span class='nc-badge'>" + str(row["이슈유형"]) + "</span>"
+                        "<span class='nc-badge-line'>" + str(row["생산라인"]) + "</span>"
+                        "</div>"
+                        "<div style='font-size:12px;color:#E63946;font-weight:bold;'>" + loss_txt + "</div>"
+                        "</div>"
+                        "<div style='margin-top:6px;font-size:13px;font-weight:bold;color:#333;'>" + str(row["고객사"]) + "</div>"
+                        "<div style='display:flex;gap:12px;margin-top:3px;flex-wrap:wrap;'>"
+                        "<span style='font-size:12px;color:#555;'>📅 " + str(row["접수일"]) + "</span>"
+                        "<span style='font-size:12px;color:#666;'>📦 " + str(row["제품규격"]) + "</span>"
+                        "</div>"
+                        "</div>"
+                    )
+                    st.markdown(card_html, unsafe_allow_html=True)
+
+                    # 선택 버튼
+                    btn_label = "▲ 닫기" if is_sel else "▼ 상세 보기"
+                    if st.button(btn_label, key="nc_sel_" + str(orig_idx)):
+                        st.session_state.nc_sel_idx = None if is_sel else orig_idx
+                        st.rerun()
+
+                    # 선택된 항목 바로 아래 상세 표시 (PC/모바일 공통)
+                    if is_sel:
+                        render_nc_detail(df_nc.loc[orig_idx], orig_idx, df_nc)
+                        st.markdown("<br>", unsafe_allow_html=True)
 
             st.markdown("<div class=\"footer-note\">※ 부적합 관리 대장은 관리자만 열람 가능합니다.</div>", unsafe_allow_html=True)
 
