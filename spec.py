@@ -641,9 +641,7 @@ def main():
                     "<div style='text-align:right;color:#E63946;font-weight:bold;font-size:14px;'>"
                     "손실 합계: " + fmt_num(total_loss, " 원") + "</div>",
                     unsafe_allow_html=True)
-
-                
-                            )
+                                            
 
                 st.markdown("---")
 
