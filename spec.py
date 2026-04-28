@@ -71,12 +71,22 @@ def save_customer_data(df):
 def load_nc_data():
     try:
         sh = get_gsheet(1)
-        data = sh.get_all_records()
-        if not data:
+        # get_all_values로 원시 데이터 읽기 (헤더 중복 오류 우회)
+        all_vals = sh.get_all_values()
+        if not all_vals or len(all_vals) < 2:
             return pd.DataFrame(columns=NC_COLS)
-        df = pd.DataFrame(data)
-        # 컬럼명 정규화
-        df.columns = NC_COLS[:len(df.columns)]
+        # 헤더 행 무시하고 NC_COLS로 강제 지정 (빈 컬럼/중복 헤더 오류 방지)
+        # 첫 행이 헤더인지 데이터인지 확인 후 처리
+        first_row = all_vals[0]
+        if any(str(v).strip().isdigit() for v in first_row[:3]):
+            # 첫 행이 데이터(NO가 숫자)인 경우 헤더 없음
+            data_rows = all_vals
+        else:
+            # 첫 행이 헤더인 경우 제외
+            data_rows = all_vals[1:]
+        n_cols = len(NC_COLS)
+        normalized = [row[:n_cols] + [""] * max(0, n_cols - len(row)) for row in data_rows]
+        df = pd.DataFrame(normalized, columns=NC_COLS)
         df = df[df["NO"].astype(str).str.match(r"^\d+$", na=False)].copy()
         df["NO"] = df["NO"].astype(int)
         for col in ["손실비용(원)", "출고수량", "출고중량(kg)", "클레임수량", "클레임중량(kg)"]:
