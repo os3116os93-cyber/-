@@ -19,19 +19,22 @@ SCOPE = [
 NC_COLS = ["NO", "접수일", "고객사", "이슈유형", "제품규격", "생산라인",
            "생산일", "출고일", "출고수량", "출고중량(kg)",
            "클레임수량", "클레임중량(kg)", "손실비용(원)", "이슈상세", "원인", "조치대책"]
+NC_NUM_COLS  = ["출고수량", "출고중량(kg)", "클레임수량", "클레임중량(kg)", "손실비용(원)"]
+NC_TEXT_COLS = ["접수일", "고객사", "이슈유형", "제품규격", "생산라인",
+                "생산일", "출고일", "이슈상세", "원인", "조치대책"]
 
 st.set_page_config(page_title="고객사양서 - 품질기술팀", page_icon="📋", layout="wide")
 
 for k, v in {"is_admin": False, "edit_idx": None, "show_add_form": False,
-             "nc_edit_idx": None, "nc_show_add": False, "nc_sel_idx": None,
-             "admin_pw_input": ""}.items():
+             "nc_edit_idx": None, "nc_show_add": False, "nc_sel_idx": None}.items():
     if k not in st.session_state:
         st.session_state[k] = v
 
 
 # ── Google Sheets 연결 ────────────────────────────────────────────
 def get_gsheet(sheet_index=0):
-    creds = Credentials.from_service_account_info(st.secrets["gcp_service_account"], scopes=SCOPE)
+    creds = Credentials.from_service_account_info(
+        st.secrets["gcp_service_account"], scopes=SCOPE)
     return gspread.authorize(creds).open_by_key(SHEET_ID).get_worksheet(sheet_index)
 
 
@@ -74,19 +77,22 @@ def load_nc_data():
         if not all_vals or len(all_vals) < 2:
             return pd.DataFrame(columns=NC_COLS)
         first_row = all_vals[0]
-        # 첫 행이 숫자(데이터)면 헤더 없는 것
-        if any(str(v).strip().isdigit() for v in first_row[:3]):
+        # 첫 셀이 순수 숫자(NO값)면 헤더 없음
+        if str(first_row[0]).strip().isdigit():
             data_rows = all_vals
         else:
             data_rows = all_vals[1:]
         n = len(NC_COLS)
         normalized = [r[:n] + [""] * max(0, n - len(r)) for r in data_rows]
         df = pd.DataFrame(normalized, columns=NC_COLS)
-        df = df[df["NO"].astype(str).str.match(r"^\d+$", na=False)].copy()
-        df["NO"] = df["NO"].astype(int)
-        for col in ["손실비용(원)", "출고수량", "출고중량(kg)", "클레임수량", "클레임중량(kg)"]:
-            # 쉼표 제거 후 숫자 변환 (핵심 수정: 문자열에서 숫자로 정확히 변환)
-            df[col] = df[col].astype(str).str.replace(",", "").str.strip()
+        # NO가 숫자가 아닌 행 제거
+        df = df[df["NO"].astype(str).str.strip().str.match(r"^\d+$", na=False)].copy()
+        df["NO"] = df["NO"].astype(str).str.strip().astype(int)
+        # NO 중복 제거 (첫 번째만 유지) - 카운트 중복 원인 차단
+        df = df.drop_duplicates(subset=["NO"], keep="first")
+        # 숫자 컬럼: 쉼표/공백 제거 후 float 변환
+        for col in NC_NUM_COLS:
+            df[col] = df[col].astype(str).str.replace(",", "", regex=False).str.strip()
             df[col] = pd.to_numeric(df[col], errors="coerce")
         return df.reset_index(drop=True)
     except Exception as e:
@@ -95,18 +101,18 @@ def load_nc_data():
 
 
 def save_nc_data(df):
-    """Google Sheets Sheet2에 저장 - 데이터 보존 보장"""
+    """전체를 문자열로 변환해서 Sheet2에 저장 - 데이터 유실 방지"""
     try:
         sh = get_gsheet(1)
         save_df = df.copy()
-        # 각 컬럼을 안전하게 문자열 변환 (핵심 수정: Series.replace 올바르게 사용)
         for col in save_df.columns:
-            save_df[col] = save_df[col].astype(str)
-            save_df[col] = save_df[col].replace("nan", "")
-            save_df[col] = save_df[col].replace("NaT", "")
-            save_df[col] = save_df[col].replace("<NA>", "")
+            save_df[col] = save_df[col].fillna("")
+            save_df[col] = save_df[col].astype(str).str.strip()
+            # nan/NaT 문자열 → 빈 문자열
+            save_df[col] = save_df[col].where(
+                ~save_df[col].isin(["nan", "NaT", "<NA>", "None"]), ""
+            )
         rows = [save_df.columns.tolist()] + save_df.values.tolist()
-        # 한 번에 clear + update (데이터 유실 방지)
         sh.clear()
         sh.update(rows)
         load_nc_data.clear()
@@ -114,6 +120,23 @@ def save_nc_data(df):
     except Exception as e:
         st.error(f"저장 오류: {e}")
         return False
+
+
+def nc_df_set_row(df, iloc_idx, updated_dict):
+    """수정 폼 저장: iloc 기반으로 타입 충돌 없이 행 업데이트"""
+    # 새 DataFrame으로 재구성 (타입 충돌 원천 차단)
+    new_df = df.copy()
+    for col in new_df.columns:
+        s = new_df[col].astype(str)
+        new_df[col] = s.where(~s.isin(["nan", "NaT", "<NA>", "None"]), "")
+    # iloc 기반으로 값 설정 (label 인덱스 불일치 방지)
+    for col, val in updated_dict.items():
+        new_df.iloc[iloc_idx, new_df.columns.get_loc(col)] = str(val) if val is not None else ""
+    # 타입 복원
+    new_df["NO"] = pd.to_numeric(new_df["NO"], errors="coerce").fillna(0).astype(int)
+    for col in NC_NUM_COLS:
+        new_df[col] = pd.to_numeric(new_df[col], errors="coerce")
+    return new_df
 
 
 # ── 유틸 ─────────────────────────────────────────────────────────
@@ -142,14 +165,19 @@ def fmt_num(val, unit=""):
         return s if s not in ("nan", "", "None") else "-"
 
 
+def safe_str(val):
+    s = str(val).strip()
+    return s if s not in ("nan", "None", "") else "-"
+
+
 def normalize_search(text):
-    """공백 제거 + 소문자 (조관1 == 조관 1)"""
     return str(text).replace(" ", "").lower()
 
 
 def nc_search_match(row, query):
     q = normalize_search(query)
-    targets = ["고객사", "이슈유형", "제품규격", "생산라인", "이슈상세", "원인", "조치대책", "접수일", "생산일"]
+    targets = ["고객사", "이슈유형", "제품규격", "생산라인",
+               "이슈상세", "원인", "조치대책", "접수일", "생산일", "출고일"]
     return any(q in normalize_search(str(row[c])) for c in targets)
 
 
@@ -209,13 +237,11 @@ st.markdown("""
 .qc-table{border-collapse:collapse;margin-top:10px;font-size:clamp(10px,2.2vw,12px);border:1px solid #DEE2E6;table-layout:auto;width:100%;}
 .qc-table th{padding:clamp(4px,1.5vw,8px) clamp(6px,2vw,12px);border:1px solid #DEE2E6;text-align:center!important;vertical-align:middle!important;background-color:#F8F9FA!important;color:#000!important;font-weight:bold!important;}
 .qc-table td{padding:clamp(4px,1.5vw,8px) clamp(6px,2vw,12px);border:1px solid #DEE2E6;text-align:center!important;vertical-align:middle!important;background-color:white!important;color:#000!important;}
-/* 부적합 카드 */
-.nc-card{border:1px solid #DEE2E6;border-radius:10px;padding:12px 16px;margin-bottom:4px;background:white;transition:box-shadow 0.15s;}
+.nc-card{border:1px solid #DEE2E6;border-radius:10px;padding:12px 16px;margin-bottom:4px;background:white;cursor:pointer;transition:box-shadow 0.15s;}
 .nc-card:hover{box-shadow:0 2px 10px rgba(0,0,0,0.08);}
 .nc-card-selected{border-color:#FF8C00!important;border-width:2px!important;box-shadow:0 2px 10px rgba(255,140,0,0.25)!important;}
 .nc-badge{display:inline-block;padding:2px 9px;border-radius:12px;font-size:11px;font-weight:bold;background:#FFF3E0;color:#E65100;margin-right:4px;}
 .nc-badge-line{display:inline-block;padding:2px 9px;border-radius:12px;font-size:11px;font-weight:bold;background:#E8F5E9;color:#2E7D32;margin-right:4px;}
-/* 상세 박스 */
 .nc-detail-box{background:white;border:1px solid #DEE2E6;border-radius:10px;overflow:hidden;margin:8px 0 16px 0;}
 .nc-detail-row{display:flex;border-bottom:1px solid #F0F0F0;}
 .nc-detail-row:last-child{border-bottom:none;}
@@ -244,32 +270,21 @@ def render_header():
         "</div>", unsafe_allow_html=True)
 
 
-def try_admin_login(pw):
-    if pw == ADMIN_PASSWORD:
-        st.session_state.is_admin = True
-        st.rerun()
-    else:
-        st.error("비밀번호가 틀렸습니다.")
-
-
 def render_admin_login():
     """사이드바 관리자 로그인 - 엔터키 지원 + 자동로그인"""
     st.sidebar.markdown("---")
     if not st.session_state.is_admin:
-        with st.sidebar.expander("🔐 관리자 로그인"):
-            # 자동로그인: 브라우저 쿠키 대신 query_params 활용
-            auto_key = st.query_params.get("auto_admin", "")
-            if auto_key == ADMIN_PASSWORD:
-                st.session_state.is_admin = True
-                st.rerun()
+        # 자동로그인: query_params 확인
+        auto_key = st.query_params.get("auto_admin", "")
+        if auto_key == ADMIN_PASSWORD:
+            st.session_state.is_admin = True
+            st.rerun()
 
+        with st.sidebar.expander("🔐 관리자 로그인"):
             pw = st.text_input("비밀번호", type="password", key="admin_pw_input",
                                help="입력 후 엔터 또는 로그인 버튼")
-            remember = st.checkbox("자동 로그인 (이 브라우저에서)", key="admin_remember")
-
-            # 엔터키: text_input 값 변화 감지로 처리
-            col1, col2 = st.columns([1, 1])
-            if col1.button("로그인", key="admin_login_btn"):
+            remember = st.checkbox("자동 로그인 설정", key="admin_remember")
+            if st.button("로그인", key="admin_login_btn"):
                 if pw == ADMIN_PASSWORD:
                     st.session_state.is_admin = True
                     if remember:
@@ -277,28 +292,24 @@ def render_admin_login():
                     st.rerun()
                 else:
                     st.error("비밀번호가 틀렸습니다.")
-            # 엔터키 지원: form 방식으로 감지
-            if pw and pw == ADMIN_PASSWORD and st.session_state.get("_pw_submitted") != pw:
-                st.session_state["_pw_submitted"] = pw
+            # 엔터키 지원: 동일 비밀번호가 이전과 다를 때만 처리
+            if pw and pw == ADMIN_PASSWORD and st.session_state.get("_pw_enter") != pw:
+                st.session_state["_pw_enter"] = pw
                 st.session_state.is_admin = True
                 if remember:
                     st.query_params["auto_admin"] = ADMIN_PASSWORD
                 st.rerun()
     else:
         if st.sidebar.button("🔒 관리자 로그아웃"):
-            st.session_state.is_admin = False
-            st.session_state.edit_idx = None
-            st.session_state.show_add_form = False
-            st.session_state.nc_edit_idx = None
-            st.session_state.nc_show_add = False
-            st.session_state.nc_sel_idx = None
-            # 자동로그인 해제
+            for k in ["is_admin", "edit_idx", "show_add_form",
+                      "nc_edit_idx", "nc_show_add", "nc_sel_idx"]:
+                st.session_state[k] = False if k == "is_admin" else None
             if "auto_admin" in st.query_params:
                 del st.query_params["auto_admin"]
             st.rerun()
 
 
-# ── 탭1: 고객사 렌더 함수 ─────────────────────────────────────────
+# ── 탭1 렌더 ─────────────────────────────────────────────────────
 def render_add_form(df):
     st.markdown("### ➕ 고객사 추가")
     cols = df.columns.tolist()
@@ -345,11 +356,11 @@ def render_edit_form(df, idx):
         st.rerun()
 
 
-# ── 탭4: 부적합 렌더 함수 ─────────────────────────────────────────
+# ── 탭4 렌더 ─────────────────────────────────────────────────────
 def render_nc_detail(row, idx, df_nc):
     def dr(label, value, loss=False):
         v_cls = " nc-loss" if loss else ""
-        val_s = str(value) if str(value) not in ("nan", "None", "") else "-"
+        val_s = safe_str(value)
         return ("<div class=\"nc-detail-row\">"
                 "<div class=\"nc-detail-label\">" + label + "</div>"
                 "<div class=\"nc-detail-value" + v_cls + "\">" + val_s + "</div>"
@@ -358,10 +369,10 @@ def render_nc_detail(row, idx, df_nc):
     html = "<div class=\"nc-detail-box\">"
     html += dr("NO", int(row["NO"]))
     html += dr("접수일", row["접수일"])
-    html += dr("고객사", str(row["고객사"]))
-    html += dr("이슈유형", "<span class=\"nc-badge\">" + str(row["이슈유형"]) + "</span>")
-    html += dr("제품규격", str(row["제품규격"]))
-    html += dr("생산라인", "<span class=\"nc-badge-line\">" + str(row["생산라인"]) + "</span>")
+    html += dr("고객사", row["고객사"])
+    html += dr("이슈유형", "<span class=\"nc-badge\">" + safe_str(row["이슈유형"]) + "</span>")
+    html += dr("제품규격", row["제품규격"])
+    html += dr("생산라인", "<span class=\"nc-badge-line\">" + safe_str(row["생산라인"]) + "</span>")
     html += dr("생산일", row["생산일"])
     html += dr("출고일", row["출고일"])
     html += dr("출고수량", fmt_num(row["출고수량"], "본"))
@@ -369,9 +380,9 @@ def render_nc_detail(row, idx, df_nc):
     html += dr("클레임수량", fmt_num(row["클레임수량"], "본"))
     html += dr("클레임중량", fmt_num(row["클레임중량(kg)"], " kg"))
     html += dr("손실비용", fmt_num(row["손실비용(원)"], " 원"), loss=True)
-    html += dr("이슈상세", str(row["이슈상세"]).replace("\n", "<br>"))
-    html += dr("원인", str(row["원인"]).replace("\n", "<br>"))
-    html += dr("조치대책", str(row["조치대책"]).replace("\n", "<br>"))
+    html += dr("이슈상세", safe_str(row["이슈상세"]).replace("\n", "<br>"))
+    html += dr("원인", safe_str(row["원인"]).replace("\n", "<br>"))
+    html += dr("조치대책", safe_str(row["조치대책"]).replace("\n", "<br>"))
     html += "</div>"
     st.markdown(html, unsafe_allow_html=True)
 
@@ -384,7 +395,7 @@ def render_nc_detail(row, idx, df_nc):
         if a2.button("🗑️ 삭제", key="nc_del_btn_" + str(idx)):
             st.session_state["nc_confirm_del_" + str(idx)] = True
         if st.session_state.get("nc_confirm_del_" + str(idx), False):
-            st.warning("**NO." + str(int(row["NO"])) + " - " + str(row["고객사"]) + "** 를 정말 삭제하시겠습니까?")
+            st.warning("**NO." + str(int(row["NO"])) + " - " + safe_str(row["고객사"]) + "** 를 정말 삭제하시겠습니까?")
             d1, d2 = st.columns([1, 5])
             if d1.button("확인 삭제", key="nc_confirm_del_btn_" + str(idx)):
                 updated = df_nc.drop(index=idx).reset_index(drop=True)
@@ -401,7 +412,7 @@ def render_nc_detail(row, idx, df_nc):
 def render_nc_add_form(df):
     st.markdown("### ➕ 부적합 이력 추가")
     new_no = int(df["NO"].max()) + 1 if not df.empty else 1
-    new_vals = {}
+    new_vals = {"NO": new_no}
 
     st.markdown("**기본 정보**")
     c1, c2, c3 = st.columns(3)
@@ -409,36 +420,35 @@ def render_nc_add_form(df):
     new_vals["생산일"] = c2.text_input("생산일 (YYYY-MM-DD)", key="nc_add_생산일")
     new_vals["출고일"] = c3.text_input("출고일 (YYYY-MM-DD)", key="nc_add_출고일")
     c1, c2, c3, c4 = st.columns(4)
-    new_vals["고객사"]   = c1.text_input("고객사", key="nc_add_고객사")
+    new_vals["고객사"]   = c1.text_input("고객사",   key="nc_add_고객사")
     new_vals["이슈유형"] = c2.text_input("이슈유형", key="nc_add_이슈유형")
     new_vals["제품규격"] = c3.text_input("제품규격", key="nc_add_제품규격")
     new_vals["생산라인"] = c4.text_input("생산라인", key="nc_add_생산라인")
 
     st.markdown("**수량 / 손실**")
     c1, c2, c3, c4, c5 = st.columns(5)
-    new_vals["출고수량"]       = c1.text_input("출고수량", key="nc_add_출고수량")
-    new_vals["출고중량(kg)"]   = c2.text_input("출고중량(kg)", key="nc_add_출고중량")
-    new_vals["클레임수량"]     = c3.text_input("클레임수량", key="nc_add_클레임수량")
+    new_vals["출고수량"]       = c1.text_input("출고수량",       key="nc_add_출고수량")
+    new_vals["출고중량(kg)"]   = c2.text_input("출고중량(kg)",   key="nc_add_출고중량")
+    new_vals["클레임수량"]     = c3.text_input("클레임수량",     key="nc_add_클레임수량")
     new_vals["클레임중량(kg)"] = c4.text_input("클레임중량(kg)", key="nc_add_클레임중량")
-    new_vals["손실비용(원)"]   = c5.text_input("손실비용(원)", key="nc_add_손실비용")
+    new_vals["손실비용(원)"]   = c5.text_input("손실비용(원)",   key="nc_add_손실비용")
 
     st.markdown("**상세 내용**")
     new_vals["이슈상세"] = st.text_area("이슈상세", height=100, key="nc_add_이슈상세")
-    new_vals["원인"]     = st.text_area("원인", height=80, key="nc_add_원인")
-    new_vals["조치대책"] = st.text_area("조치대책", height=80, key="nc_add_조치대책")
+    new_vals["원인"]     = st.text_area("원인",     height=80,  key="nc_add_원인")
+    new_vals["조치대책"] = st.text_area("조치대책", height=80,  key="nc_add_조치대책")
 
     b1, b2 = st.columns([1, 5])
     if b1.button("저장", key="nc_add_save"):
-        if not new_vals.get("고객사", "").strip():
+        if not str(new_vals.get("고객사", "")).strip():
             st.error("고객사는 필수 입력입니다.")
         else:
-            row_data = {"NO": new_no}
-            row_data.update(new_vals)
+            # NC_COLS 순서대로 row 생성
+            row_data = {col: new_vals.get(col, "") for col in NC_COLS}
             new_row = pd.DataFrame([row_data])
-            # 숫자 컬럼 타입 맞추기
-            for col in ["출고수량", "출고중량(kg)", "클레임수량", "클레임중량(kg)", "손실비용(원)"]:
+            for col in NC_NUM_COLS:
                 new_row[col] = pd.to_numeric(new_row[col], errors="coerce")
-            updated = pd.concat([df, new_row[NC_COLS]], ignore_index=True)
+            updated = pd.concat([df, new_row], ignore_index=True)
             if save_nc_data(updated):
                 st.session_state.nc_show_add = False
                 st.success(f"NO.{new_no} 부적합 이력이 추가되었습니다!")
@@ -450,40 +460,37 @@ def render_nc_add_form(df):
 
 def render_nc_edit_form(df, idx):
     row = df.iloc[idx]
-    st.markdown("### ✏️ 수정 중: NO." + str(int(row["NO"])) + " - " + str(row["고객사"]))
+    st.markdown("### ✏️ 수정 중: NO." + str(int(row["NO"])) + " - " + safe_str(row["고객사"]))
     updated = {}
 
     st.markdown("**기본 정보**")
     c1, c2, c3 = st.columns(3)
-    updated["접수일"] = c1.text_input("접수일", value=str(row["접수일"]) if str(row["접수일"]) != "nan" else "", key="nc_edit_접수일")
-    updated["생산일"] = c2.text_input("생산일", value=str(row["생산일"]) if str(row["생산일"]) != "nan" else "", key="nc_edit_생산일")
-    updated["출고일"] = c3.text_input("출고일", value=str(row["출고일"]) if str(row["출고일"]) != "nan" else "", key="nc_edit_출고일")
+    updated["접수일"] = c1.text_input("접수일", value=safe_str(row["접수일"]) if safe_str(row["접수일"]) != "-" else "", key="nc_edit_접수일")
+    updated["생산일"] = c2.text_input("생산일", value=safe_str(row["생산일"]) if safe_str(row["생산일"]) != "-" else "", key="nc_edit_생산일")
+    updated["출고일"] = c3.text_input("출고일", value=safe_str(row["출고일"]) if safe_str(row["출고일"]) != "-" else "", key="nc_edit_출고일")
     c1, c2, c3, c4 = st.columns(4)
-    updated["고객사"]   = c1.text_input("고객사",   value=str(row["고객사"])   if str(row["고객사"])   != "nan" else "", key="nc_edit_고객사")
-    updated["이슈유형"] = c2.text_input("이슈유형", value=str(row["이슈유형"]) if str(row["이슈유형"]) != "nan" else "", key="nc_edit_이슈유형")
-    updated["제품규격"] = c3.text_input("제품규격", value=str(row["제품규격"]) if str(row["제품규격"]) != "nan" else "", key="nc_edit_제품규격")
-    updated["생산라인"] = c4.text_input("생산라인", value=str(row["생산라인"]) if str(row["생산라인"]) != "nan" else "", key="nc_edit_생산라인")
+    updated["고객사"]   = c1.text_input("고객사",   value=safe_str(row["고객사"])   if safe_str(row["고객사"])   != "-" else "", key="nc_edit_고객사")
+    updated["이슈유형"] = c2.text_input("이슈유형", value=safe_str(row["이슈유형"]) if safe_str(row["이슈유형"]) != "-" else "", key="nc_edit_이슈유형")
+    updated["제품규격"] = c3.text_input("제품규격", value=safe_str(row["제품규격"]) if safe_str(row["제품규격"]) != "-" else "", key="nc_edit_제품규격")
+    updated["생산라인"] = c4.text_input("생산라인", value=safe_str(row["생산라인"]) if safe_str(row["생산라인"]) != "-" else "", key="nc_edit_생산라인")
 
     st.markdown("**수량 / 손실**")
     c1, c2, c3, c4, c5 = st.columns(5)
-    updated["출고수량"]       = c1.text_input("출고수량",       value=fmt_num(row["출고수량"]).replace(",",""),       key="nc_edit_출고수량")
-    updated["출고중량(kg)"]   = c2.text_input("출고중량(kg)",   value=fmt_num(row["출고중량(kg)"]).replace(",",""),   key="nc_edit_출고중량")
-    updated["클레임수량"]     = c3.text_input("클레임수량",     value=fmt_num(row["클레임수량"]).replace(",",""),     key="nc_edit_클레임수량")
-    updated["클레임중량(kg)"] = c4.text_input("클레임중량(kg)", value=fmt_num(row["클레임중량(kg)"]).replace(",",""), key="nc_edit_클레임중량")
-    updated["손실비용(원)"]   = c5.text_input("손실비용(원)",   value=fmt_num(row["손실비용(원)"]).replace(",",""),   key="nc_edit_손실비용")
+    updated["출고수량"]       = c1.text_input("출고수량",       value=fmt_num(row["출고수량"]).replace(",", ""),       key="nc_edit_출고수량")
+    updated["출고중량(kg)"]   = c2.text_input("출고중량(kg)",   value=fmt_num(row["출고중량(kg)"]).replace(",", ""),   key="nc_edit_출고중량")
+    updated["클레임수량"]     = c3.text_input("클레임수량",     value=fmt_num(row["클레임수량"]).replace(",", ""),     key="nc_edit_클레임수량")
+    updated["클레임중량(kg)"] = c4.text_input("클레임중량(kg)", value=fmt_num(row["클레임중량(kg)"]).replace(",", ""), key="nc_edit_클레임중량")
+    updated["손실비용(원)"]   = c5.text_input("손실비용(원)",   value=fmt_num(row["손실비용(원)"]).replace(",", ""),   key="nc_edit_손실비용")
 
     st.markdown("**상세 내용**")
-    updated["이슈상세"] = st.text_area("이슈상세", value=str(row["이슈상세"]) if str(row["이슈상세"]) != "nan" else "", height=100, key="nc_edit_이슈상세")
-    updated["원인"]     = st.text_area("원인",     value=str(row["원인"])     if str(row["원인"])     != "nan" else "", height=80,  key="nc_edit_원인")
-    updated["조치대책"] = st.text_area("조치대책", value=str(row["조치대책"]) if str(row["조치대책"]) != "nan" else "", height=80,  key="nc_edit_조치대책")
+    updated["이슈상세"] = st.text_area("이슈상세", value=safe_str(row["이슈상세"]) if safe_str(row["이슈상세"]) != "-" else "", height=100, key="nc_edit_이슈상세")
+    updated["원인"]     = st.text_area("원인",     value=safe_str(row["원인"])     if safe_str(row["원인"])     != "-" else "", height=80,  key="nc_edit_원인")
+    updated["조치대책"] = st.text_area("조치대책", value=safe_str(row["조치대책"]) if safe_str(row["조치대책"]) != "-" else "", height=80,  key="nc_edit_조치대책")
 
     b1, b2 = st.columns([1, 5])
     if b1.button("저장", key="nc_edit_save"):
-        for col, val in updated.items():
-            df.at[idx, col] = val
-        # 숫자 컬럼 재변환
-        for col in ["출고수량", "출고중량(kg)", "클레임수량", "클레임중량(kg)", "손실비용(원)"]:
-            df[col] = pd.to_numeric(df[col], errors="coerce")
+        # iloc_idx로 타입 충돌 없이 행 업데이트
+        df = nc_df_set_row(df, idx, updated)
         if save_nc_data(df):
             st.session_state.nc_edit_idx = None
             st.success("수정이 완료되었습니다!")
@@ -618,13 +625,13 @@ def main():
             # 검색바 + 추가버튼
             col_s, col_b = st.columns([5, 1])
             search = col_s.text_input("🔍 통합 검색",
-                placeholder="예: 백청, 유민철강, 조관1 ...", key="nc_search")
+                placeholder="예: 백청, 조관1, 2025, 스크래치...", key="nc_search")
             if col_b.button("➕ 추가", key="nc_add_btn"):
                 st.session_state.nc_show_add = True
                 st.session_state.nc_sel_idx = None
                 st.rerun()
 
-            # 검색 필터 (공백 무시 + 연도 검색 포함)
+            # 검색 필터
             df_view = df_nc.copy()
             if search:
                 df_view = df_view[df_view.apply(lambda r: nc_search_match(r, search), axis=1)]
@@ -632,8 +639,8 @@ def main():
             if df_view.empty:
                 st.info("검색 결과가 없습니다.")
             else:
-                # 통계 헤더
-                valid_loss = df_view["손실비용(원)"].dropna()
+                # 통계: 건수 + 손실합계 (연도별 항목 없음)
+                valid_loss = pd.to_numeric(df_view["손실비용(원)"], errors="coerce").dropna()
                 total_loss = valid_loss.sum() if not valid_loss.empty else 0
                 c1, c2 = st.columns([1, 1])
                 c1.markdown(f"**총 {len(df_view)}건**")
@@ -641,48 +648,53 @@ def main():
                     "<div style='text-align:right;color:#E63946;font-weight:bold;font-size:14px;'>"
                     "손실 합계: " + fmt_num(total_loss, " 원") + "</div>",
                     unsafe_allow_html=True)
-                                            
 
                 st.markdown("---")
 
-                # 카드 목록 - 터치/클릭으로 상세 토글
+                # 카드 목록 - 버튼이 카드 전체 너비를 덮어 터치처럼 동작
                 for orig_idx, row in df_view.iterrows():
                     is_sel = (st.session_state.nc_sel_idx == orig_idx)
-                    card_class = "nc-card nc-card-selected" if is_sel else "nc-card"
                     loss_txt = fmt_num(row["손실비용(원)"], " 원")
+                    border_style = "border:2px solid #FF8C00;" if is_sel else "border:1px solid #DEE2E6;"
+                    shadow_style = "box-shadow:0 2px 10px rgba(255,140,0,0.25);" if is_sel else ""
 
-                    card_html = (
-                        "<div class=\"" + card_class + "\">"
+                    # 카드 + 버튼을 하나의 컨테이너처럼 구성
+                    # 버튼을 use_container_width=True로 카드 아래 전체 너비 배치
+                    st.markdown(
+                        "<div style='" + border_style + shadow_style +
+                        "border-radius:10px;padding:12px 16px;margin-bottom:0px;background:white;'>"
                         "<div style='display:flex;justify-content:space-between;align-items:flex-start;'>"
                         "<div>"
                         "<span style='font-weight:bold;font-size:14px;margin-right:6px;'>NO." + str(int(row["NO"])) + "</span>"
-                        "<span class='nc-badge'>" + str(row["이슈유형"]) + "</span>"
-                        "<span class='nc-badge-line'>" + str(row["생산라인"]) + "</span>"
+                        "<span class='nc-badge'>" + safe_str(row["이슈유형"]) + "</span>"
+                        "<span class='nc-badge-line'>" + safe_str(row["생산라인"]) + "</span>"
                         "</div>"
                         "<div style='font-size:12px;color:#E63946;font-weight:bold;white-space:nowrap;'>" + loss_txt + "</div>"
                         "</div>"
-                        "<div style='margin-top:5px;font-size:14px;font-weight:bold;color:#222;'>" + str(row["고객사"]) + "</div>"
+                        "<div style='margin-top:5px;font-size:14px;font-weight:bold;color:#222;'>" + safe_str(row["고객사"]) + "</div>"
                         "<div style='display:flex;gap:14px;margin-top:4px;flex-wrap:wrap;'>"
-                        "<span style='font-size:12px;color:#555;'>📅 " + str(row["접수일"]) + "</span>"
-                        "<span style='font-size:12px;color:#666;'>📦 " + str(row["제품규격"]) + "</span>"
+                        "<span style='font-size:12px;color:#555;'>📅 " + safe_str(row["접수일"]) + "</span>"
+                        "<span style='font-size:12px;color:#666;'>📦 " + safe_str(row["제품규격"]) + "</span>"
                         "</div>"
-                        "</div>"
+                        "</div>",
+                        unsafe_allow_html=True
                     )
-                    st.markdown(card_html, unsafe_allow_html=True)
-
-                    # 클릭 버튼 (카드처럼 동작, 선택시 ▲ 닫기 / 미선택시 ▼ 열기)
+                    # 카드 너비에 맞는 열기/닫기 버튼 (카드처럼 동작)
                     btn_label = "▲ 닫기" if is_sel else "▼ 열기"
-                    if st.button(btn_label, key="nc_sel_" + str(orig_idx),
-                                 use_container_width=False):
+                    if st.button(btn_label, key="nc_sel_" + str(orig_idx), use_container_width=True):
                         st.session_state.nc_sel_idx = None if is_sel else orig_idx
                         st.rerun()
+                    st.markdown("<div style='margin-bottom:8px;'></div>", unsafe_allow_html=True)
 
-                    # 선택된 카드 바로 아래 상세 표시 (PC/모바일 공통)
+                    # 선택된 카드 바로 아래 상세 (PC/모바일 공통)
                     if is_sel:
-                        render_nc_detail(df_nc.loc[orig_idx], orig_idx, df_nc)
+                        # df_nc에서 iloc으로 안전하게 참조
+                        nc_row = df_nc.iloc[orig_idx]
+                        render_nc_detail(nc_row, orig_idx, df_nc)
 
             st.markdown("<div class=\"footer-note\">※ 부적합 관리 대장은 관리자만 열람 가능합니다.</div>", unsafe_allow_html=True)
 
 
 if __name__ == "__main__":
     main()
+    
