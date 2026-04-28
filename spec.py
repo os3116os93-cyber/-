@@ -694,6 +694,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-PYEOF
-echo "완료: $(wc -l < /home/claude/app.py)줄"
-
