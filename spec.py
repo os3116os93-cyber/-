@@ -618,7 +618,7 @@ def main():
             # 검색바 + 추가버튼
             col_s, col_b = st.columns([5, 1])
             search = col_s.text_input("🔍 통합 검색",
-                placeholder="예: 백청, 유민철강, 조관1, 2025, 2026...", key="nc_search")
+                placeholder="예: 백청, 유민철강, 조관1, ...", key="nc_search")
             if col_b.button("➕ 추가", key="nc_add_btn"):
                 st.session_state.nc_show_add = True
                 st.session_state.nc_sel_idx = None
