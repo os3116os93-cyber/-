@@ -581,7 +581,7 @@ def main():
             # ── 검색바 + 추가버튼 ──────────────────────────────
             col_s, col_b = st.columns([5, 1])
             search = col_s.text_input(
-                "🔍 통합 검색 (공백 무시: 조관1 = 조관 1)",
+                "🔍 통합 검색 ",
                 placeholder="예: 백청, 유민철강, 조관1, HGI...",
                 key="nc_search"
             )
@@ -603,7 +603,7 @@ def main():
                 c1.markdown(f"**총 {len(df_view)}건**")
                 c2.markdown(
                     "<div style='text-align:right;color:#E63946;font-weight:bold;font-size:14px;'>"
-                    "손실 합계: " + fmt_num(total_loss, " 원") + "</div>",
+                    "</div>",
                     unsafe_allow_html=True
                 )
 
