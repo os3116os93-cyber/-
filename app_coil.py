@@ -18,7 +18,7 @@ SCOPES = [
 
 # secrets.toml 에서 읽어옴
 # [gcp_service_account] 섹션에 JSON 키 정보 입력
-SPREADSHEET_ID = "여기에_구글시트_ID_입력"   # ← 실제 시트 ID로 변경
+SPREADSHEET_ID = st.secrets.get("SHEET_ID", "")
 
 SHEET_A = "A팀_입력"
 SHEET_B = "B팀_입력"
