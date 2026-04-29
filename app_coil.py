@@ -64,26 +64,31 @@ def load_merged_data():
     """통합뷰 시트에서 데이터 로드"""
     client = get_gsheet_client()
     if not client:
+        st.error("❌ 클라이언트 연결 자체 실패")
         return pd.DataFrame()
     try:
+        st.write("✅ 클라이언트 연결 성공")
         sh = client.open_by_key(SPREADSHEET_ID)
+        st.write(f"✅ 시트 열기 성공: {sh.title}")
+        st.write(f"📋 시트 내 탭 목록: {[w.title for w in sh.worksheets()]}")
         ws = sh.worksheet(SHEET_MERGED)
+        st.write(f"✅ 탭 접근 성공: {ws.title}")
         data = ws.get_all_records()
+        st.write(f"✅ 데이터 행 수: {len(data)}")
         df = pd.DataFrame(data)
         if df.empty:
+            st.warning("⚠️ 데이터프레임 비어있음")
             return df
-        # 재단일 날짜 파싱
         df["재단일"] = pd.to_datetime(df["재단일"], errors="coerce")
-        # 숫자 컬럼 변환
         num_cols = [c for c in df.columns if c != "재단일" and c not in ["제강사", "강종", "재질", "팀구분"]]
         for c in num_cols:
             if c in df.columns:
                 df[c] = pd.to_numeric(df[c], errors="coerce")
         return df
     except Exception as e:
-        st.error(f"데이터 로드 실패: {e}")
+        st.error(f"❌ 정확한 오류: {type(e).__name__}: {e}")
         return pd.DataFrame()
-
+        
 
 def append_row(sheet_name: str, row_data: dict):
     """시트에 행 추가"""
