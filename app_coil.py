@@ -1,6 +1,5 @@
 """
 app_coil.py — 코일 실두께 데이터 뷰어
-구글 시트 연동: A팀시트 + B팀시트 → 통합시트 자동 병합
 """
 
 import streamlit as st
@@ -33,13 +32,13 @@ COLUMNS_NEW = [
     "전산두께", "실두께평균", "차이", "최소실두께", "최대실두께", "범위차이"
 ]
 
-DISPLAY_COLS_DEFAULT = [
+# 항상 표시할 전체 컬럼 순서
+DISPLAY_COLS_ALL = [
     "재단일", "제강사", "강종", "재질", "두께", "폭", "중량",
+    "S(L)_1", "C_1", "S(R)_1",
+    "S(L)_2", "C_2", "S(R)_2",
+    "S(L)_3", "C_3", "S(R)_3",
     "전산두께", "실두께평균", "차이", "최소실두께", "최대실두께", "범위차이"
-]
-
-DISPLAY_COLS_MOBILE = [
-    "재단일", "제강사", "재질", "두께", "실두께평균", "차이"
 ]
 
 TEXT_COLS = {"재단일", "제강사", "강종", "재질", "팀구분"}
@@ -80,7 +79,6 @@ def _ws_to_df(ws):
 
 
 def load_merged_data():
-    """통합뷰 시트에서 데이터 로드 (중복 헤더 대응)"""
     client = get_gsheet_client()
     if not client:
         return pd.DataFrame()
@@ -91,6 +89,8 @@ def load_merged_data():
         if df.empty:
             return df
         df["재단일"] = pd.to_datetime(df["재단일"], errors="coerce")
+        # 유효하지 않은 날짜 행 제거
+        df = df[df["재단일"].notna()].copy()
         for c in df.columns:
             if c not in TEXT_COLS:
                 df[c] = pd.to_numeric(df[c], errors="coerce")
@@ -131,6 +131,7 @@ def merge_sheets():
             if df.empty:
                 return df
             df["재단일"] = pd.to_datetime(df["재단일"], errors="coerce")
+            df = df[df["재단일"].notna()].copy()
             return df
 
         df_a = read_team(SHEET_A)
@@ -198,48 +199,38 @@ def _show_viewer():
         st.info("데이터가 없습니다.")
         return
 
-    with st.expander("🔍 필터", expanded=True):
-        f1, f2, f3, f4 = st.columns(4)
-        with f1:
-            min_d = df["재단일"].min().date()
-            max_d = df["재단일"].max().date()
-            date_from = st.date_input("시작일", value=min_d, key="cf_from")
-            date_to   = st.date_input("종료일", value=max_d, key="cf_to")
-        with f2:
-            makers = ["전체"] + sorted(df["제강사"].dropna().unique().tolist()) if "제강사" in df.columns else ["전체"]
-            maker = st.selectbox("제강사", makers)
-        with f3:
-            grades = ["전체"] + sorted(df["강종"].dropna().unique().tolist()) if "강종" in df.columns else ["전체"]
-            grade = st.selectbox("강종", grades)
-        with f4:
-            teams = ["전체"] + sorted(df["팀구분"].dropna().unique().tolist()) if "팀구분" in df.columns else ["전체"]
-            team = st.selectbox("팀구분", teams)
+    # ── 통합검색 ──────────────────────────────────────────────────────
+    search = st.text_input("🔍 통합 검색",
+        placeholder="재단일, 제강사, 강종, 재질 등 검색어를 입력하세요")
 
-    mask = (
-        (df["재단일"].dt.date >= date_from) &
-        (df["재단일"].dt.date <= date_to)
-    )
-    if maker != "전체":
-        mask &= (df["제강사"] == maker)
-    if grade != "전체":
-        mask &= (df["강종"] == grade)
-    if team != "전체" and "팀구분" in df.columns:
-        mask &= (df["팀구분"] == team)
-
-    filtered = df[mask].copy()
+    # ── 필터 적용 ─────────────────────────────────────────────────────
+    filtered = df.copy()
     filtered = filtered.sort_values("재단일", ascending=False)
+
+    if search:
+        q = search.strip().lower().replace(" ", "")
+        def row_match(row):
+            for c in TEXT_COLS:
+                if c in row.index and q in str(row[c]).lower().replace(" ", ""):
+                    return True
+            # 날짜도 검색 가능
+            if "재단일" in row.index:
+                d_str = str(row["재단일"])
+                if q in d_str.replace("-", "").replace(" ", ""):
+                    return True
+            return False
+        filtered = filtered[filtered.apply(row_match, axis=1)]
+
     filtered["재단일"] = filtered["재단일"].dt.strftime("%Y-%m-%d")
 
-    st.caption(f"총 {len(filtered):,}건 | {date_from} ~ {date_to}")
+    st.caption(f"총 {len(filtered):,}건")
 
-    is_mobile = st.checkbox("📱 모바일 보기 (컬럼 축소)", value=False)
-    if is_mobile:
-        show_cols = [c for c in DISPLAY_COLS_MOBILE if c in filtered.columns]
-    else:
-        show_cols = [c for c in DISPLAY_COLS_DEFAULT if c in filtered.columns]
-        if "팀구분" in filtered.columns:
-            show_cols = ["팀구분"] + show_cols
+    # ── 전체 컬럼 표시 (팀구분 있으면 맨 앞) ─────────────────────────
+    show_cols = [c for c in DISPLAY_COLS_ALL if c in filtered.columns]
+    if "팀구분" in filtered.columns:
+        show_cols = ["팀구분"] + show_cols
 
+    # ── 차이값 색상 ───────────────────────────────────────────────────
     def color_diff(val):
         try:
             v = float(val)
@@ -260,8 +251,7 @@ def _show_viewer():
 
     csv = display_df.to_csv(index=False, encoding="utf-8-sig")
     st.download_button("⬇️ CSV 다운로드", data=csv,
-                       file_name=f"코일실두께_{date_from}_{date_to}.csv",
-                       mime="text/csv")
+                       file_name=f"코일실두께.csv", mime="text/csv")
 
 
 def _show_input_form():
@@ -296,11 +286,12 @@ def _show_input_form():
             f_type     = st.text_input("강종")
             f_grade    = st.text_input("재질")
         with c3:
-            f_thick    = st.number_input("두께",    min_value=0.0, step=0.001, format="%.3f")
-            f_width    = st.number_input("폭",      min_value=0.0, step=1.0,   format="%.1f")
+            # 두께·폭·중량 정수 표시
+            f_thick    = st.number_input("두께",    min_value=0.0, step=1.0, format="%d")
+            f_width    = st.number_input("폭",      min_value=0.0, step=1.0, format="%d")
         with c4:
-            f_weight   = st.number_input("중량",    min_value=0.0, step=1.0,   format="%.0f")
-            f_pc_thick = st.number_input("전산두께", min_value=0.0, step=0.001, format="%.3f")
+            f_weight   = st.number_input("중량",    min_value=0.0, step=1.0, format="%d")
+            f_pc_thick = st.number_input("전산두께", min_value=0.0, step=0.01, format="%.2f")
 
         st.markdown("**측정값 입력** (S(L) / C / S(R) × 3회)")
         m1, m2, m3 = st.columns(3)
@@ -308,9 +299,10 @@ def _show_input_form():
         for i, (col, label) in enumerate(zip([m1, m2, m3], ["1차", "2차", "3차"])):
             with col:
                 st.caption(label)
-                measures[f"S(L)_{i+1}"] = st.number_input(f"S(L) {label}", step=0.001, format="%.3f", key=f"sl{i}")
-                measures[f"C_{i+1}"]    = st.number_input(f"C {label}",    step=0.001, format="%.3f", key=f"c{i}")
-                measures[f"S(R)_{i+1}"] = st.number_input(f"S(R) {label}", step=0.001, format="%.3f", key=f"sr{i}")
+                # 측정값 소수점 2자리
+                measures[f"S(L)_{i+1}"] = st.number_input(f"S(L) {label}", step=0.01, format="%.2f", key=f"sl{i}")
+                measures[f"C_{i+1}"]    = st.number_input(f"C {label}",    step=0.01, format="%.2f", key=f"c{i}")
+                measures[f"S(R)_{i+1}"] = st.number_input(f"S(R) {label}", step=0.01, format="%.2f", key=f"sr{i}")
 
         submitted = st.form_submit_button("💾 저장", use_container_width=True, type="primary")
 
@@ -327,17 +319,17 @@ def _show_input_form():
                 "제강사":     f_maker,
                 "강종":       f_type,
                 "재질":       f_grade,
-                "두께":       f_thick,
-                "폭":         f_width,
-                "중량":       f_weight,
-                "전산두께":   f_pc_thick,
-                "실두께평균": round(avg, 6),
-                "차이":       round(diff, 6),
-                "최소실두께": round(min_v, 3),
-                "최대실두께": round(max_v, 3),
-                "범위차이":   round(range_diff, 3),
+                "두께":       int(f_thick),
+                "폭":         int(f_width),
+                "중량":       int(f_weight),
+                "전산두께":   round(f_pc_thick, 2),
+                "실두께평균": round(avg, 2),
+                "차이":       round(diff, 2),
+                "최소실두께": round(min_v, 2),
+                "최대실두께": round(max_v, 2),
+                "범위차이":   round(range_diff, 2),
                 "팀구분":     st.session_state.coil_auth_team,
-                **measures,
+                **{k: round(v, 2) for k, v in measures.items()},
             }
             sheet_name = SHEET_A if st.session_state.coil_auth_team == "A팀" else SHEET_B
             with st.spinner("저장 중..."):
