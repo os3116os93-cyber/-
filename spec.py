@@ -1,8 +1,4 @@
-import base64
-with open('/mnt/user-data/uploads/1777515970773_PDF용_배경.png','rb') as f:
-    bg_b64 = base64.b64encode(f.read()).decode()
-
-content = '''import streamlit as st
+import streamlit as st
 import os
 import base64
 
