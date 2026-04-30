@@ -272,41 +272,28 @@ def render_header():
 
 
 def render_admin_login():
-    """사이드바 관리자 로그인 - 엔터키 지원 + 자동로그인"""
+    """사이드바 관리자 로그인 - 엔터키 지원"""
     st.sidebar.markdown("---")
     if not st.session_state.is_admin:
-        # 자동로그인: query_params 확인
-        auto_key = st.query_params.get("auto_admin", "")
-        if auto_key == ADMIN_PASSWORD:
-            st.session_state.is_admin = True
-            st.rerun()
-
         with st.sidebar.expander("🔐 관리자 로그인"):
             pw = st.text_input("비밀번호", type="password", key="admin_pw_input",
                                help="입력 후 엔터 또는 로그인 버튼")
-            remember = st.checkbox("자동 로그인 설정", key="admin_remember")
             if st.button("로그인", key="admin_login_btn"):
                 if pw == ADMIN_PASSWORD:
                     st.session_state.is_admin = True
-                    if remember:
-                        st.query_params["auto_admin"] = ADMIN_PASSWORD
                     st.rerun()
                 else:
                     st.error("비밀번호가 틀렸습니다.")
-            # 엔터키 지원: 동일 비밀번호가 이전과 다를 때만 처리
+            # 엔터키 지원
             if pw and pw == ADMIN_PASSWORD and st.session_state.get("_pw_enter") != pw:
                 st.session_state["_pw_enter"] = pw
                 st.session_state.is_admin = True
-                if remember:
-                    st.query_params["auto_admin"] = ADMIN_PASSWORD
                 st.rerun()
     else:
         if st.sidebar.button("🔒 관리자 로그아웃"):
             for k in ["is_admin", "edit_idx", "show_add_form",
                       "nc_edit_idx", "nc_show_add", "nc_sel_idx"]:
                 st.session_state[k] = False if k == "is_admin" else None
-            if "auto_admin" in st.query_params:
-                del st.query_params["auto_admin"]
             st.rerun()
 
 
