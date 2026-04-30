@@ -1,5 +1,6 @@
 """
 app_coil.py — 중간검사성적서 (코일 실두께 데이터 뷰어)
+구글 시트 통합뷰에서 직접 읽어 표시
 """
 import streamlit as st
 import pandas as pd
@@ -16,17 +17,18 @@ SPREADSHEET_ID = st.secrets.get("SHEET_ID", "")
 SHEET_MERGED   = "통합뷰"
 TEXT_COLS      = {"재단일", "제강사", "강종", "재질"}
 
+# 9칸 측정값 → 3칸 평균으로 통합
 MEASURE_GROUPS = {
-    "S(L)평균": ["S(L)_1", "S(L)_2", "S(L)_3"],
-    "C평균":    ["C_1",    "C_2",    "C_3"],
-    "S(R)평균": ["S(R)_1", "S(R)_2", "S(R)_3"],
+    "L 평균": ["S(L)_1", "S(L)_2", "S(L)_3"],
+    "C 평균": ["C_1",    "C_2",    "C_3"],
+    "R 평균": ["S(R)_1", "S(R)_2", "S(R)_3"],
 }
 
+# 최종 표시 컬럼 순서
 DISPLAY_COLS = [
     "재단일", "제강사", "강종", "재질", "두께", "폭", "중량",
-    "전산두께",
-    "S(L)평균", "C평균", "S(R)평균",
-    "실두께평균", "최소실두께", "최대실두께", "범위차이", "차이",
+    "전산두께", "L 평균", "C 평균", "R 평균",
+    "실두께평균", "최소실두께", "최대실두께", "차이",
 ]
 
 
@@ -42,6 +44,7 @@ def get_gsheet_client():
 
 
 def _ws_to_df(ws):
+    """워크시트 → DataFrame. 중복 헤더 자동 _1/_2/_3 처리."""
     all_values = ws.get_all_values()
     if not all_values or len(all_values) < 2:
         return pd.DataFrame()
@@ -71,18 +74,17 @@ def load_data():
         df = _ws_to_df(ws)
         if df.empty:
             return df
+        # 날짜 파싱
         df["재단일"] = pd.to_datetime(df["재단일"], errors="coerce")
         df = df[df["재단일"].notna()].copy()
+        # 숫자 변환
         for c in df.columns:
             if c not in TEXT_COLS and c != "재단일":
                 df[c] = pd.to_numeric(df[c], errors="coerce")
-        # 측정값 평균 계산
+        # 측정값 평균 계산 (L/C/R)
         for avg_col, src_cols in MEASURE_GROUPS.items():
             exist = [c for c in src_cols if c in df.columns]
-            if exist:
-                df[avg_col] = df[exist].mean(axis=1).round(2)
-            else:
-                df[avg_col] = None
+            df[avg_col] = df[exist].mean(axis=1).round(2) if exist else None
         return df
     except Exception as e:
         st.error(f"데이터 로드 실패: {e}")
@@ -92,28 +94,16 @@ def load_data():
 def run():
     st.markdown("""
 <style>
-/* 날짜 피커 언어 강제 (Streamlit은 브라우저 locale 따름 → JS로 보완) */
-input[type="text"][aria-label*="일"] { ime-mode: active; }
-
-.coil-title {
-    font-size:1.45rem; font-weight:800; color:#1a1a2e; margin-bottom:2px;
-}
-.coil-sub { font-size:13px; color:#6b7280; margin-bottom:16px; }
-
+.coil-title { font-size:1.4rem; font-weight:800; color:#1a1a2e; margin-bottom:2px; }
+.coil-sub   { font-size:13px; color:#6b7280; margin-bottom:14px; }
 .filter-wrap {
     background:#fff; border:1.5px solid #e8eaed; border-radius:12px;
-    padding:16px 18px 10px 18px; margin-bottom:16px;
+    padding:14px 18px 12px 18px; margin-bottom:14px;
     box-shadow:0 1px 4px rgba(0,0,0,0.05);
 }
-.filter-label {
-    font-size:12px; font-weight:700; color:#374151;
-    margin-bottom:10px; letter-spacing:0.03em;
-}
-
-/* 검색 입력 드롭다운 느낌 */
-[data-testid="stTextInput"] input {
-    border-radius:8px !important;
-}
+.filter-label { font-size:12px; font-weight:700; color:#374151; margin-bottom:8px; }
+/* 좌우 여백 */
+.block-container { padding-left:2rem !important; padding-right:2rem !important; }
 </style>
 """, unsafe_allow_html=True)
 
@@ -139,84 +129,48 @@ input[type="text"][aria-label*="일"] { ime-mode: active; }
     st.markdown('<div class="filter-wrap">', unsafe_allow_html=True)
     st.markdown('<div class="filter-label">🔍 조회 조건</div>', unsafe_allow_html=True)
 
-    # 날짜 — 한 줄에 시작일 / 종료일 (모바일/PC 공통)
-    d_col1, d_col2 = st.columns(2)
-    with d_col1:
+    # 날짜: 시작일 / 종료일 한 줄 (YYYY/MM/DD 포맷으로 영문 월 방지)
+    d1, d2 = st.columns(2)
+    with d1:
         date_from = st.date_input(
-            "시작일",
-            value=total_min,
-            min_value=date(2020, 1, 1),   # 연도 제한 없음
-            max_value=date(2099, 12, 31),
-            key="coil_from",
-            format="YYYY/MM/DD",           # 한국식 포맷 (영문월 방지)
+            "시작일", value=total_min,
+            min_value=date(2020, 1, 1), max_value=date(2099, 12, 31),
+            format="YYYY/MM/DD", key="coil_from"
         )
-    with d_col2:
+    with d2:
         date_to = st.date_input(
-            "종료일",
-            value=total_max,
-            min_value=date(2020, 1, 1),
-            max_value=date(2099, 12, 31),
-            key="coil_to",
-            format="YYYY/MM/DD",
+            "종료일", value=total_max,
+            min_value=date(2020, 1, 1), max_value=date(2099, 12, 31),
+            format="YYYY/MM/DD", key="coil_to"
         )
 
-    # 텍스트 검색 필터 — 제강사 / 강종 / 재질 (타이핑 → 자동 후보 표시)
-    s_col1, s_col2, s_col3 = st.columns(3)
+    # 제강사 / 강종 / 재질: 타이핑 → 즉시 필터 (selectbox 없이 한 단계로)
+    s1, s2, s3 = st.columns(3)
 
-    def _search_input(label, col_name, key, all_vals):
-        """타이핑하면 후보를 expander로 보여주는 검색 위젯"""
-        query = col.text_input(label, placeholder=f"예: {all_vals[0] if all_vals else ''}", key=key)
-        if query:
-            hits = [v for v in all_vals if query.lower() in v.lower()]
-            if hits and hits != all_vals:
-                with col.expander(f"후보 {len(hits)}건", expanded=True):
-                    chosen = st.radio("선택", hits, key=key+"_pick", label_visibility="collapsed")
-                    if chosen:
-                        return chosen
-            return query
-        return ""
+    maker_vals = sorted(df["제강사"].dropna().unique().tolist()) if "제강사" in df.columns else []
+    grade_vals = sorted(df["강종"].dropna().unique().tolist())   if "강종"   in df.columns else []
+    mat_vals   = sorted(df["재질"].dropna().unique().tolist())   if "재질"   in df.columns else []
 
-    # 제강사
-    with s_col1:
-        maker_vals = sorted(df["제강사"].dropna().unique().tolist()) if "제강사" in df.columns else []
-        maker_q = st.text_input("제강사 검색", placeholder=f"예: {maker_vals[0] if maker_vals else 'PSC'}", key="coil_maker_q")
-        if maker_q:
-            maker_hits = [v for v in maker_vals if maker_q.lower() in v.lower()]
-            if maker_hits:
-                maker_sel = st.selectbox("→ 선택", ["(전체)"] + maker_hits, key="coil_maker_sel")
-            else:
-                maker_sel = "(전체)"
-                st.caption("일치하는 제강사 없음")
-        else:
-            maker_sel = "(전체)"
+    with s1:
+        maker_q = st.text_input("제강사", placeholder=f"예: {maker_vals[0] if maker_vals else 'ANF'}", key="coil_maker")
+    with s2:
+        grade_q = st.text_input("강종",   placeholder=f"예: {grade_vals[0] if grade_vals else 'GI'}",  key="coil_grade")
+    with s3:
+        mat_q   = st.text_input("재질",   placeholder=f"예: {mat_vals[0]   if mat_vals   else 'SGC'}", key="coil_mat")
 
-    # 강종
-    with s_col2:
-        grade_vals = sorted(df["강종"].dropna().unique().tolist()) if "강종" in df.columns else []
-        grade_q = st.text_input("강종 검색", placeholder=f"예: {grade_vals[0] if grade_vals else 'GI'}", key="coil_grade_q")
-        if grade_q:
-            grade_hits = [v for v in grade_vals if grade_q.lower() in v.lower()]
-            if grade_hits:
-                grade_sel = st.selectbox("→ 선택", ["(전체)"] + grade_hits, key="coil_grade_sel")
-            else:
-                grade_sel = "(전체)"
-                st.caption("일치하는 강종 없음")
-        else:
-            grade_sel = "(전체)"
-
-    # 재질
-    with s_col3:
-        mat_vals = sorted(df["재질"].dropna().unique().tolist()) if "재질" in df.columns else []
-        mat_q = st.text_input("재질 검색", placeholder=f"예: {mat_vals[0] if mat_vals else 'SGC'}", key="coil_mat_q")
-        if mat_q:
-            mat_hits = [v for v in mat_vals if mat_q.lower() in v.lower()]
-            if mat_hits:
-                mat_sel = st.selectbox("→ 선택", ["(전체)"] + mat_hits, key="coil_mat_sel")
-            else:
-                mat_sel = "(전체)"
-                st.caption("일치하는 재질 없음")
-        else:
-            mat_sel = "(전체)"
+    # 입력 중 후보 미리보기 (선택 단계 없이 자동 필터)
+    if maker_q:
+        hits = [v for v in maker_vals if maker_q.lower() in v.lower()]
+        if hits:
+            st.caption("제강사 후보: " + " / ".join(hits[:8]))
+    if grade_q:
+        hits = [v for v in grade_vals if grade_q.lower() in v.lower()]
+        if hits:
+            st.caption("강종 후보: " + " / ".join(hits[:8]))
+    if mat_q:
+        hits = [v for v in mat_vals if mat_q.lower() in v.lower()]
+        if hits:
+            st.caption("재질 후보: " + " / ".join(hits[:8]))
 
     st.markdown('</div>', unsafe_allow_html=True)
 
@@ -229,12 +183,27 @@ input[type="text"][aria-label*="일"] { ime-mode: active; }
         (df["재단일"].dt.date >= date_from) &
         (df["재단일"].dt.date <= date_to)
     )
-    if maker_sel not in ("(전체)", ""):
-        mask &= (df["제강사"] == maker_sel)
-    if grade_sel not in ("(전체)", ""):
-        mask &= (df["강종"] == grade_sel)
-    if mat_sel not in ("(전체)", ""):
-        mask &= (df["재질"] == mat_sel)
+    # 제강사: 부분일치
+    if maker_q:
+        maker_hits = [v for v in maker_vals if maker_q.lower() in v.lower()]
+        if maker_hits:
+            mask &= df["제강사"].isin(maker_hits)
+        else:
+            mask &= df["제강사"].str.contains(maker_q, case=False, na=False)
+    # 강종: 부분일치
+    if grade_q:
+        grade_hits = [v for v in grade_vals if grade_q.lower() in v.lower()]
+        if grade_hits:
+            mask &= df["강종"].isin(grade_hits)
+        else:
+            mask &= df["강종"].str.contains(grade_q, case=False, na=False)
+    # 재질: 부분일치
+    if mat_q:
+        mat_hits = [v for v in mat_vals if mat_q.lower() in v.lower()]
+        if mat_hits:
+            mask &= df["재질"].isin(mat_hits)
+        else:
+            mask &= df["재질"].str.contains(mat_q, case=False, na=False)
 
     filtered = df[mask].copy()
     filtered = filtered.sort_values("재단일", ascending=False)
@@ -242,16 +211,18 @@ input[type="text"][aria-label*="일"] { ime-mode: active; }
 
     st.caption(f"총 **{len(filtered):,}건** | {date_from} ~ {date_to}  *(전체: {len(df):,}건)*")
 
-    show_cols = [c for c in DISPLAY_COLS if c in filtered.columns]
-    display_df = filtered[[c for c in show_cols if c in filtered.columns]]
+    # ── 표시 컬럼 ────────────────────────────────────────────────
+    show_cols  = [c for c in DISPLAY_COLS if c in filtered.columns]
+    display_df = filtered[show_cols].copy()
 
     # 차이값 색상
     def color_diff(val):
         try:
             v = float(val)
-            if v < -0.05:   return "color:#1565C0;font-weight:600"
-            elif v > 0.05:  return "color:#C62828;font-weight:600"
-        except: pass
+            if v < -0.05:  return "color:#1565C0;font-weight:600"
+            elif v > 0.05: return "color:#C62828;font-weight:600"
+        except:
+            pass
         return ""
 
     styled = display_df.style
@@ -267,7 +238,14 @@ input[type="text"][aria-label*="일"] { ime-mode: active; }
             fmt[c] = "{:.2f}"
     styled = styled.format(fmt, na_rep="-")
 
-    st.dataframe(styled, use_container_width=True, height=560, hide_index=True)
+    st.dataframe(
+        styled,
+        use_container_width=True,
+        height=560,
+        hide_index=True,
+        column_config={c: st.column_config.NumberColumn(c, width="small")
+                       for c in show_cols if c not in TEXT_COLS and c != "재단일"}
+    )
 
     csv = display_df.to_csv(index=False, encoding="utf-8-sig")
     st.download_button(
