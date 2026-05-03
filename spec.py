@@ -30,39 +30,53 @@ BG_B64 = "/9j/4AAQSkZJRgABAQAAAQABAAD/4gHYSUNDX1BST0ZJTEUAAQEAAAHIAAAAAAQwAABtbn
 if "page" not in st.session_state:
     st.session_state.page = "home"
 
-# ── 전역 CSS (배너 짤림 방지 핵심) ──────────────────────────────────
 st.markdown("""
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;600;700;800;900&display=swap');
-* { font-family: 'Noto Sans KR', sans-serif !important; }
+* { font-family: 'Noto Sans KR', sans-serif !important; box-sizing: border-box; }
 
-/* Streamlit 기본 상단 여백 완전 제거 */
-#root > div:first-child { margin-top: 0 !important; }
-.stApp > header { display: none !important; }
-.stApp { margin-top: 0 !important; }
+/* ── Streamlit 상단 여백 완전 제거 ── */
+.stApp > header { display: none !important; height: 0 !important; }
+#stDecoration   { display: none !important; }
+.stApp          { overflow-x: hidden; }
 [data-testid="stAppViewContainer"] {
     padding-top: 0 !important;
     margin-top: 0 !important;
 }
 [data-testid="stAppViewContainer"] > .main {
-    background: #f0f2f6;
     padding-top: 0 !important;
+    background: #f0f2f6;
 }
 .block-container {
-    padding-top: 0 !important;
-    padding-bottom: 0 !important;
-    padding-left: 0 !important;
-    padding-right: 0 !important;
+    padding: 0 !important;
     max-width: 100% !important;
 }
-/* 첫 번째 div 마진 제거 */
-[data-testid="stVerticalBlock"] > div:first-child {
+/* 첫 번째 엘리먼트 마진 제거 */
+[data-testid="stVerticalBlock"] > div:first-child > div:first-child {
     margin-top: 0 !important;
     padding-top: 0 !important;
 }
 [data-testid="stSidebar"] { display: none !important; }
 
-/* 홈버튼 영역 */
+/* ── 들어가기 버튼 스타일 ── */
+div[data-testid="stButton"].enter-btn > button,
+div[data-testid="stButton"] > button[kind="primary"] {
+    background: linear-gradient(135deg, #FF8C00 0%, #E65100 100%) !important;
+    color: white !important;
+    border: none !important;
+    border-radius: 0 0 14px 14px !important;
+    font-weight: 700 !important;
+    font-size: 14px !important;
+    height: 44px !important;
+    transition: opacity .15s !important;
+    box-shadow: 0 3px 10px rgba(255,140,0,0.28) !important;
+    margin-top: 0 !important;
+}
+div[data-testid="stButton"] > button[kind="primary"]:hover {
+    opacity: 0.85 !important;
+}
+
+/* 홈 버튼 */
 .home-bar {
     background: #fff;
     border-bottom: 1px solid #e8eaed;
@@ -71,43 +85,29 @@ st.markdown("""
     align-items: center;
     gap: 10px;
 }
-
-/* 들어가기 버튼 스타일 통일 */
-.hj-enter-btn > div > button {
-    background: linear-gradient(135deg, #FF8C00, #E65100) !important;
-    color: white !important;
-    border: none !important;
-    border-radius: 10px !important;
-    font-weight: 700 !important;
-    font-size: 14px !important;
-    padding: 10px 0 !important;
-    transition: opacity .18s !important;
-    box-shadow: 0 2px 8px rgba(255,140,0,0.3) !important;
-}
-.hj-enter-btn > div > button:hover {
-    opacity: 0.88 !important;
-}
 </style>
 """, unsafe_allow_html=True)
 
 
 def show_home():
-    # ── 배너 HTML ────────────────────────────────────────────────
     st.markdown(f"""
 <style>
-/* 홈화면 전용 카드 스타일 */
+/* 카드 그리드 */
+.hj-wrap {{ background: #f0f2f6; }}
 .hj-grid {{
     display: grid;
     grid-template-columns: 1fr 1fr;
-    gap: 18px;
-    padding: 0 36px;
+    gap: 0;
+    padding: 24px 36px 0 36px;
     box-sizing: border-box;
     max-width: 860px;
+    column-gap: 18px;
 }}
 .hj-card {{
     background: #fff;
-    border-radius: 14px;
+    border-radius: 14px 14px 0 0;
     border: 1.5px solid #e8eaed;
+    border-bottom: none;
     box-shadow: 0 2px 8px rgba(0,0,0,0.06);
     padding: 22px 22px 18px 22px;
     display: flex;
@@ -116,15 +116,6 @@ def show_home():
     position: relative;
     overflow: hidden;
 }}
-.hj-card::after {{
-    content: '';
-    position: absolute; bottom: 0; left: 0; right: 0;
-    height: 3px;
-    background: linear-gradient(90deg, #FF8C00, #FFB347);
-    transform: scaleX(0); transform-origin: left;
-    transition: transform .22s;
-}}
-.hj-card:hover::after {{ transform: scaleX(1); }}
 .hj-card-badge {{
     background: #FFF3E0; color: #E65100;
     font-size: 10px; font-weight: 800;
@@ -135,33 +126,36 @@ def show_home():
 .hj-card-title {{ font-size: 1.05rem; font-weight: 800; color: #1a1a2e; margin-bottom: 5px; }}
 .hj-card-desc {{ font-size: 0.78rem; color: #6b7280; line-height: 1.6; margin: 0; }}
 
-/* 버튼 래퍼: 카드와 같은 좌우 패딩으로 꽉차게 */
+/* 버튼 행: 카드 바로 아래 딱 붙이기 */
+.hj-btn-wrap {{
+    padding: 0 36px 32px 36px;
+    max-width: 860px;
+    box-sizing: border-box;
+}}
 .hj-btn-row {{
     display: grid;
     grid-template-columns: 1fr 1fr;
-    gap: 18px;
-    padding: 10px 36px 32px 36px;
-    box-sizing: border-box;
-    max-width: 860px;
+    column-gap: 18px;
 }}
 
 @media(max-width: 640px) {{
     .hj-grid {{
         grid-template-columns: 1fr;
-        padding: 0 16px;
-        gap: 12px;
+        padding: 16px 16px 0 16px;
+        max-width: 100%;
+        column-gap: 0;
+        row-gap: 0;
+    }}
+    .hj-card {{ margin-bottom: 0; }}
+    .hj-btn-wrap {{
+        padding: 0 16px 24px 16px;
         max-width: 100%;
     }}
-    .hj-btn-row {{
-        grid-template-columns: 1fr;
-        padding: 8px 16px 24px 16px;
-        max-width: 100%;
-    }}
-    .hj-card {{ padding: 18px 16px 14px 16px; }}
+    .hj-btn-row {{ grid-template-columns: 1fr; row-gap: 0; }}
 }}
 </style>
 
-<!-- 배너: margin/padding 0으로 딱 붙이기 -->
+<!-- ── 배너 ── -->
 <div style="
     position: relative;
     width: 100%;
@@ -174,46 +168,33 @@ def show_home():
     padding: 24px 36px 32px 36px;
     box-sizing: border-box;
     margin: 0;
+    line-height: 1;
 ">
-  <!-- 배경 이미지 -->
-  <div style="
-    position:absolute; inset:0;
-    background-image: url('data:image/jpeg;base64,{BG_B64}');
-    background-size: cover;
-    background-position: center 30%;
-    opacity: 0.32;
-    filter: grayscale(15%);
+  <div style="position:absolute;inset:0;
+    background-image:url('data:image/jpeg;base64,{BG_B64}');
+    background-size:cover;background-position:center 30%;
+    opacity:0.32;filter:grayscale(15%);"></div>
+  <div style="position:absolute;inset:0;
+    background:linear-gradient(140deg,rgba(10,10,10,0.92) 0%,rgba(20,20,20,0.68) 55%,rgba(255,140,0,0.10) 100%);
   "></div>
-  <!-- 오버레이 -->
-  <div style="
-    position:absolute; inset:0;
-    background: linear-gradient(140deg,rgba(10,10,10,0.92) 0%,rgba(20,20,20,0.68) 55%,rgba(255,140,0,0.10) 100%);
-  "></div>
-  <!-- 상단: 로고 + 팀명 -->
   <div style="position:relative;z-index:2;display:flex;justify-content:space-between;align-items:center;">
     <div>{logo_tag}</div>
-    <div style="
-      background: rgba(255,140,0,0.2);
-      border: 1px solid rgba(255,140,0,0.5);
-      color: #FFB347; font-size: 11px; font-weight: 700;
-      padding: 4px 14px; border-radius: 20px;
-      letter-spacing: 0.08em; white-space: nowrap;
-    ">품질기술팀</div>
+    <div style="background:rgba(255,140,0,0.2);border:1px solid rgba(255,140,0,0.5);
+      color:#FFB347;font-size:11px;font-weight:700;padding:4px 14px;border-radius:20px;
+      letter-spacing:0.08em;white-space:nowrap;">품질기술팀</div>
   </div>
-  <!-- 하단: 타이틀 -->
   <div style="position:relative;z-index:2;margin-top:16px;">
-    <div style="font-size:10px;font-weight:700;color:#FF8C00;letter-spacing:0.2em;text-transform:uppercase;margin-bottom:8px;">
-      Quality Management System
-    </div>
-    <div style="font-size:clamp(1.35rem,3.2vw,2.1rem);font-weight:900;color:#fff;line-height:1.2;margin-bottom:8px;letter-spacing:-0.02em;word-break:keep-all;">
+    <div style="font-size:10px;font-weight:700;color:#FF8C00;letter-spacing:0.2em;
+      text-transform:uppercase;margin-bottom:8px;">Quality Management System</div>
+    <div style="font-size:clamp(1.35rem,3.2vw,2.1rem);font-weight:900;color:#fff;
+      line-height:1.2;margin-bottom:8px;letter-spacing:-0.02em;word-break:keep-all;">
       품질 통합 <span style="color:#FF8C00;">관리 시스템</span>
     </div>
     <div style="font-size:12px;color:rgba(255,255,255,0.5);">아래에서 사용할 앱을 선택하세요</div>
   </div>
 </div>
 
-<!-- 카드 그리드 -->
-<div style="height:22px;"></div>
+<!-- ── 카드 ── -->
 <div class="hj-grid">
   <div class="hj-card">
     <div class="hj-card-badge">INSPECTION</div>
@@ -228,23 +209,55 @@ def show_home():
     <div class="hj-card-desc">고객 사양서 · 품질 보증 기준<br>부적합 관리 대장</div>
   </div>
 </div>
-<div style="height:10px;"></div>
 """, unsafe_allow_html=True)
 
-    # 들어가기 버튼: 카드 바로 아래, 카드와 같은 그리드 너비
+    # 버튼: 카드와 같은 패딩, 상단 여백 0으로 카드에 딱 붙임
+    st.markdown("""
+<style>
+/* 버튼 컨테이너 상단 마진 제거 */
+[data-testid="stHorizontalBlock"] {
+    gap: 18px !important;
+    padding: 0 36px 32px 36px !important;
+    max-width: 860px !important;
+    margin-top: -1px !important;
+}
+[data-testid="stHorizontalBlock"] > div {
+    padding: 0 !important;
+    min-width: 0 !important;
+}
+/* 버튼 모양: 카드 하단에 이어지는 형태 */
+[data-testid="stHorizontalBlock"] button[kind="primary"] {
+    border-radius: 0 0 14px 14px !important;
+    margin-top: 0 !important;
+    border-top: 1px solid #e8eaed !important;
+}
+@media(max-width: 640px) {
+    [data-testid="stHorizontalBlock"] {
+        flex-direction: column !important;
+        padding: 0 16px 24px 16px !important;
+        gap: 0 !important;
+        max-width: 100% !important;
+    }
+    [data-testid="stHorizontalBlock"] > div { width: 100% !important; }
+    [data-testid="stHorizontalBlock"] button[kind="primary"] {
+        border-radius: 0 0 14px 14px !important;
+        margin-bottom: 16px !important;
+    }
+}
+</style>
+""", unsafe_allow_html=True)
+
     col1, col2 = st.columns(2)
     with col1:
-        st.markdown('<div class="hj-enter-btn">', unsafe_allow_html=True)
-        if st.button("📐 중간검사성적서 들어가기", key="btn_coil", use_container_width=True):
+        if st.button("📐 중간검사성적서 들어가기", key="btn_coil",
+                     use_container_width=True, type="primary"):
             st.session_state.page = "coil"
             st.rerun()
-        st.markdown('</div>', unsafe_allow_html=True)
     with col2:
-        st.markdown('<div class="hj-enter-btn">', unsafe_allow_html=True)
-        if st.button("📋 품질통합관리 들어가기", key="btn_cutting", use_container_width=True):
+        if st.button("📋 품질통합관리 들어가기", key="btn_cutting",
+                     use_container_width=True, type="primary"):
             st.session_state.page = "cutting"
             st.rerun()
-        st.markdown('</div>', unsafe_allow_html=True)
 
 
 def _render_home_btn():
@@ -261,15 +274,12 @@ def _render_home_btn():
     st.markdown("<div style='height:8px'></div>", unsafe_allow_html=True)
 
 
-# ── 라우팅 ────────────────────────────────────────────────────────────
 if st.session_state.page == "home":
     show_home()
-
 elif st.session_state.page == "coil":
     _render_home_btn()
     import app_coil
     app_coil.run()
-
 elif st.session_state.page == "cutting":
     _render_home_btn()
     import app_cutting
