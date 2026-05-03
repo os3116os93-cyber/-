@@ -236,9 +236,21 @@ section[data-testid="stSidebarContent"] { padding-top: 1rem; }
 .block-container {
     padding-left: 2rem !important;
     padding-right: 2rem !important;
-    padding-top: 1rem !important;
+    padding-top: 0.5rem !important;
     max-width: 1100px !important;
     margin: 0 auto !important;
+}
+/* Streamlit 기본 상단 여백 제거 - 헤더 짤림 방지 */
+header[data-testid="stHeader"] {
+    background: transparent;
+    z-index: 999;
+}
+@media(max-width:768px){
+  .block-container {
+    padding-left: 0.8rem !important;
+    padding-right: 0.8rem !important;
+    padding-top: 0.3rem !important;
+  }
 }
 </style>
 """, unsafe_allow_html=True)
@@ -246,21 +258,57 @@ section[data-testid="stSidebarContent"] { padding-top: 1rem; }
     # ── CSS ──────────────────────────────────────────────────────────
     st.markdown("""
 <style>
-.header-wrapper{display:flex;justify-content:space-between;align-items:flex-end;width:100%;padding:10px 0;border-bottom:1px solid #f0f2f6;margin-bottom:20px;}
-.brand-logo{height:65px;width:auto;}
-.team-name-fixed{font-size:14px;font-weight:600;color:rgba(0,0,0,0.5);margin-bottom:5px;}
+/* ── 헤더 배너 - 짤림 방지 ── */
+.header-wrapper{
+    display:flex;
+    justify-content:space-between;
+    align-items:center;
+    width:100%;
+    padding:8px 0;
+    border-bottom:1px solid #f0f2f6;
+    margin-bottom:20px;
+    box-sizing:border-box;
+    flex-wrap:nowrap;
+    overflow:visible;
+    min-height:56px;
+}
+.header-logo-wrap{
+    flex-shrink:0;
+    display:flex;
+    align-items:center;
+    min-width:0;
+}
+.brand-logo{
+    height:52px;
+    width:auto;
+    max-width:180px;
+    object-fit:contain;
+    display:block;
+}
+.team-name-fixed{
+    font-size:13px;
+    font-weight:600;
+    color:rgba(0,0,0,0.5);
+    white-space:nowrap;
+    flex-shrink:0;
+    padding-left:8px;
+}
+/* ── 타이틀 ── */
 .main-title{color:#FF8C00!important;font-weight:800;font-size:1.85rem;}
 .customer-title{color:#FF7F50!important;font-weight:bold;font-size:1.45rem;margin-top:30px;margin-bottom:15px;}
-.admin-badge{background:#FF8C00;color:white;padding:2px 10px;border-radius:20px;font-size:12px;font-weight:bold;margin-left:10px;}
+.admin-badge{background:#FF8C00;color:white;padding:2px 10px;border-radius:20px;font-size:12px;font-weight:bold;margin-left:8px;}
+/* ── 테이블 ── */
 .qc-table-wrapper{overflow-x:auto;-webkit-overflow-scrolling:touch;width:100%;}
 .qc-table{border-collapse:collapse;margin-top:10px;font-size:clamp(10px,2.2vw,12px);border:1px solid #DEE2E6;table-layout:auto;width:100%;}
 .qc-table th{padding:clamp(4px,1.5vw,8px) clamp(6px,2vw,12px);border:1px solid #DEE2E6;text-align:center!important;vertical-align:middle!important;background-color:#F8F9FA!important;color:#000!important;font-weight:bold!important;}
 .qc-table td{padding:clamp(4px,1.5vw,8px) clamp(6px,2vw,12px);border:1px solid #DEE2E6;text-align:center!important;vertical-align:middle!important;background-color:white!important;color:#000!important;}
+/* ── NC 카드 ── */
 .nc-card{border:1px solid #DEE2E6;border-radius:10px;padding:12px 16px;margin-bottom:4px;background:white;cursor:pointer;transition:box-shadow 0.15s;}
 .nc-card:hover{box-shadow:0 2px 10px rgba(0,0,0,0.08);}
 .nc-card-selected{border-color:#FF8C00!important;border-width:2px!important;box-shadow:0 2px 10px rgba(255,140,0,0.25)!important;}
 .nc-badge{display:inline-block;padding:2px 9px;border-radius:12px;font-size:11px;font-weight:bold;background:#FFF3E0;color:#E65100;margin-right:4px;}
 .nc-badge-line{display:inline-block;padding:2px 9px;border-radius:12px;font-size:11px;font-weight:bold;background:#E8F5E9;color:#2E7D32;margin-right:4px;}
+/* ── NC 상세 ── */
 .nc-detail-box{background:white;border:1px solid #DEE2E6;border-radius:10px;overflow:hidden;margin:8px 0 16px 0;}
 .nc-detail-row{display:flex;border-bottom:1px solid #F0F0F0;}
 .nc-detail-row:last-child{border-bottom:none;}
@@ -269,9 +317,28 @@ section[data-testid="stSidebarContent"] { padding-top: 1rem; }
 .nc-loss{color:#E63946;font-weight:bold;}
 .footer-note{font-size:12.5px;color:#666;margin-top:15px;font-weight:500;}
 .guide-text{display:none;}
+/* ── 모바일 최적화 ── */
 @media(max-width:768px){
+  /* 헤더 */
+  .header-wrapper{
+    padding:6px 0;
+    min-height:48px;
+  }
+  .brand-logo{
+    height:40px;
+    max-width:140px;
+  }
+  .team-name-fixed{font-size:12px;}
+  .admin-badge{font-size:11px;padding:2px 7px;}
+  /* 가이드 */
   .guide-text{display:block;font-size:15px;font-weight:bold;color:#333;margin:15px 0;padding:15px;background:#fff4e6;border-radius:8px;border-left:5px solid #FF8C00;line-height:1.4;}
+  /* NC 상세 라벨 */
   .nc-detail-label{width:75px;min-width:75px;font-size:10px;}
+  /* 카드 패딩 */
+  .nc-card{padding:10px 12px;}
+  /* 타이틀 */
+  .main-title{font-size:1.4rem;}
+  .customer-title{font-size:1.2rem;}
 }
 </style>
 """, unsafe_allow_html=True)
@@ -286,7 +353,7 @@ def render_header():
     badge = "<span class=\"admin-badge\">🔓 관리자 모드</span>" if st.session_state.is_admin else ""
     st.markdown(
         "<div class=\"header-wrapper\">"
-        "<div>" + logo + "</div>"
+        "<div class=\"header-logo-wrap\">" + logo + "</div>"
         "<div class=\"team-name-fixed\">품질기술팀" + badge + "</div>"
         "</div>", unsafe_allow_html=True)
 
@@ -511,7 +578,15 @@ def render_nc_edit_form(df, idx):
 # ── MAIN ─────────────────────────────────────────────────────────
 def main():
     render_header()
-    st.markdown("<div class=\"main-title\">📋 품질 통합 관리 시스템</div>", unsafe_allow_html=True)
+
+    # ── 페이지 서브타이틀 ──
+    st.markdown(
+        "<div style='margin-bottom:24px;'>"
+        "<div style='color:#FF8C00;font-size:0.78rem;font-weight:700;letter-spacing:2px;text-transform:uppercase;margin-bottom:4px;'>📋 QUALITY MANAGEMENT SYSTEM</div>"
+        "<div class='main-title'>품질 통합 관리 시스템</div>"
+        "</div>",
+        unsafe_allow_html=True
+    )
 
     if st.session_state.is_admin:
         tab1, tab2, tab3, tab4 = st.tabs(["📄 고객 사양서", "⚖️ 품질 보증 기준", "🏭 제강사 정보", "🚨 부적합 관리"])
@@ -675,7 +750,8 @@ def main():
                         "position:relative;"
                         "border:" + border_w + " solid " + border_col + ";"
                         "box-shadow:" + shadow + ";"
-                        "border-radius:10px;padding:12px 16px 12px 16px;"
+                        "border-radius:10px 10px 0 0;"
+                        "padding:12px 16px 10px 16px;"
                         "margin-bottom:0px;background:white;'>"
 
                         # 카드 내용
@@ -696,13 +772,19 @@ def main():
                         unsafe_allow_html=True
                     )
 
-                    # 투명 전체너비 버튼 → 카드 클릭처럼 동작
-                    # 버튼 자체는 카드 아래 붙어있고 use_container_width로 카드 폭과 동일
-                    # CSS로 margin-top:-1px 처리해 카드와 시각적으로 연결
+                    # 카드 바로 아래 붙는 열기/닫기 버튼 (모바일/PC 공통)
                     st.markdown(
                         "<style>"
-                        "div[data-testid='stButton'] > button[kind='secondary']"
-                        "{margin-top:0px!important;}"
+                        "div[data-testid='stButton'] > button {"
+                        "  border-radius:0 0 10px 10px !important;"
+                        "  margin-top:0px !important;"
+                        "  border-top:none !important;"
+                        "  background-color:" + ("#FFF3E0" if is_sel else "#f8f9fa") + " !important;"
+                        "  color:" + ("#E65100" if is_sel else "#555") + " !important;"
+                        "  font-size:12px !important;"
+                        "  height:32px !important;"
+                        "  min-height:32px !important;"
+                        "}"
                         "</style>",
                         unsafe_allow_html=True
                     )
