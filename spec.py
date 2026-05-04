@@ -187,14 +187,14 @@ def show_home():
 <!-- ── 배너 ── -->
 <div style="
     position: relative;
-    width: 70%;
+    width: 100%;
     min-height: 220px;
     overflow: hidden;
     background: #0d0d0d;
     display: flex;
     flex-direction: column;
     justify-content: space-between;
-    padding: 18px 24px 24px 24px;
+    padding: 10px 24px 24px 24px;
     box-sizing: border-box;
     margin: 0;
     line-height: 1;
