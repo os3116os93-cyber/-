@@ -204,15 +204,15 @@ def show_home():
     background-size:cover;background-position:center 30%;
     opacity:0.32;filter:grayscale(15%);"></div>
   <div style="position:absolute;inset:0;
-    background:linear-gradient(140deg,rgba(10,10,10,0.92) 0%,rgba(20,20,20,0.68) 55%,rgba(255,140,0,0.10) 100%);
+    background:linear-gradient(140deg,rgba(10,10,10,0.92) 0%,rgba(20,20,20,0.68) 55%,rgba(200,140,0,0.10) 100%);
   "></div>
 
   <!-- 상단 로고 + 배지 -->
   <div style="position:relative;z-index:2;display:flex;justify-content:space-between;align-items:center;flex-wrap:nowrap;gap:8px;">
     <div style="flex-shrink:0;">{logo_tag}</div>
     <div style="
-      background:rgba(255,140,0,0.2);
-      border:1px solid rgba(255,140,0,0.5);
+      background:rgba(200,140,0,0.2);
+      border:1px solid rgba(200,140,0,0.5);
       color:#FFB347;
       font-size:clamp(8px,2.5vw,8px);
       font-weight:600;
