@@ -86,7 +86,7 @@ div[data-testid="stButton"] > button[kind="primary"]:hover {
     overflow: visible;
 }
 .home-bar img {
-    height: 20px;
+    height: 36px;
     width: auto;
     max-width: 140px;
     object-fit: contain;
@@ -187,7 +187,7 @@ def show_home():
 <!-- ── 배너 ── -->
 <div style="
     position: relative;
-    width: 100%;
+    width: 70%;
     min-height: 220px;
     overflow: hidden;
     background: #0d0d0d;
