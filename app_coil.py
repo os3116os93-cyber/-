@@ -32,7 +32,7 @@ DISPLAY_COLS = [
 ]
 
 
-@st.cache_resource(ttl=300)
+@st.cache_resource(ttl=10)
 def get_gsheet_client():
     try:
         creds = Credentials.from_service_account_info(
@@ -63,7 +63,7 @@ def _ws_to_df(ws):
     return df
 
 
-@st.cache_data(ttl=300)
+@st.cache_data(ttl=10)
 def load_data():
     client = get_gsheet_client()
     if not client:
