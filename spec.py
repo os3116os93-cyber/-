@@ -86,7 +86,7 @@ div[data-testid="stButton"] > button[kind="primary"]:hover {
     overflow: visible;
 }
 .home-bar img {
-    height: 36px;
+    height: 20px;
     width: auto;
     max-width: 140px;
     object-fit: contain;
