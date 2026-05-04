@@ -214,7 +214,7 @@ def show_home():
       background:rgba(255,140,0,0.2);
       border:1px solid rgba(255,140,0,0.5);
       color:#FFB347;
-      font-size:clamp(9px,2.5vw,11px);
+      font-size:clamp(8px,2.5vw,11px);
       font-weight:700;
       padding:4px 10px;
       border-radius:20px;
