@@ -231,7 +231,14 @@ def run():
     # 사이드바 복원 + 본문 여백 설정
     st.markdown("""
 <style>
-[data-testid="stSidebar"] { display: flex !important; }
+/* 홈 페이지에서 숨긴 사이드바 강제 복원 */
+html body [data-testid="stSidebar"],
+[data-testid="stSidebar"],
+section[data-testid="stSidebar"] {
+    display: flex !important;
+    visibility: visible !important;
+    opacity: 1 !important;
+}
 section[data-testid="stSidebarContent"] { padding-top: 1rem; }
 .block-container {
     padding-left: 2rem !important;
@@ -239,11 +246,6 @@ section[data-testid="stSidebarContent"] { padding-top: 1rem; }
     padding-top: 0.5rem !important;
     max-width: 1100px !important;
     margin: 0 auto !important;
-}
-/* Streamlit 기본 상단 여백 제거 - 헤더 짤림 방지 */
-header[data-testid="stHeader"] {
-    background: transparent;
-    z-index: 999;
 }
 @media(max-width:768px){
   .block-container {
