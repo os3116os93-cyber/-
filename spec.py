@@ -194,7 +194,7 @@ def show_home():
     display: flex;
     flex-direction: column;
     justify-content: space-between;
-    padding: 24px 24px 24px 24px;
+    padding: 32px 24px 24px 24px;
     box-sizing: border-box;
     margin: 0;
     line-height: 1;
