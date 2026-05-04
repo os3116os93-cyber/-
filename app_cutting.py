@@ -175,11 +175,7 @@ def nc_search_match(row, query):
 
 
 # ── 탭2: 품질보증 테이블 ──────────────────────────────────────────
-def build_standard_table():
-    td = "padding:8px 12px;border:1px solid #DEE2E6;text-align:center;vertical-align:middle;background:white;color:#000;font-size:12px;white-space:pre-wrap;"
-    th = "padding:8px 12px;border:1px solid #DEE2E6;text-align:center;vertical-align:middle;background:#F8F9FA;color:#000;font-weight:bold;font-size:12px;"
-
-    def c(content, rs=1, cs=1):
+def c(content, rs=1, cs=1):
         r = " rowspan=\"" + str(rs) + "\"" if rs > 1 else ""
         s = " colspan=\"" + str(cs) + "\"" if cs > 1 else ""
         return "<td style=\"" + td + "\"" + r + s + ">" + content + "</td>"
