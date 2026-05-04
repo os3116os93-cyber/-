@@ -10,6 +10,8 @@ try:
 except NameError:
     BASE_DIR = os.getcwd()
 
+logo_base64 = None  # run() 호출 시 초기화
+
 ADMIN_PASSWORD = st.secrets.get("ADMIN_PASSWORD", "admin1234")
 SHEET_ID       = st.secrets.get("SHEET_ID", "")
 SCOPE = [
