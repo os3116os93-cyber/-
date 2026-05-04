@@ -231,19 +231,20 @@ def run():
     # 사이드바 복원 + 본문 여백 설정
     st.markdown("""
 <style>
-/* 홈 페이지에서 숨긴 사이드바 강제 복원 */
+/* 홈 페이지에서 숨겨진 사이드바 강제 복원 */
+html body section[data-testid="stSidebar"],
 html body [data-testid="stSidebar"],
-[data-testid="stSidebar"],
 section[data-testid="stSidebar"] {
     display: flex !important;
     visibility: visible !important;
     opacity: 1 !important;
+    width: auto !important;
 }
 section[data-testid="stSidebarContent"] { padding-top: 1rem; }
 .block-container {
     padding-left: 2rem !important;
     padding-right: 2rem !important;
-    padding-top: 0.5rem !important;
+    padding-top: 1rem !important;
     max-width: 1100px !important;
     margin: 0 auto !important;
 }
@@ -251,7 +252,6 @@ section[data-testid="stSidebarContent"] { padding-top: 1rem; }
   .block-container {
     padding-left: 0.8rem !important;
     padding-right: 0.8rem !important;
-    padding-top: 0.3rem !important;
   }
 }
 </style>
@@ -260,57 +260,21 @@ section[data-testid="stSidebarContent"] { padding-top: 1rem; }
     # ── CSS ──────────────────────────────────────────────────────────
     st.markdown("""
 <style>
-/* ── 헤더 배너 - 짤림 방지 ── */
-.header-wrapper{
-    display:flex;
-    justify-content:space-between;
-    align-items:center;
-    width:100%;
-    padding:8px 0;
-    border-bottom:1px solid #f0f2f6;
-    margin-bottom:20px;
-    box-sizing:border-box;
-    flex-wrap:nowrap;
-    overflow:visible;
-    min-height:56px;
-}
-.header-logo-wrap{
-    flex-shrink:0;
-    display:flex;
-    align-items:center;
-    min-width:0;
-}
-.brand-logo{
-    height:52px;
-    width:auto;
-    max-width:180px;
-    object-fit:contain;
-    display:block;
-}
-.team-name-fixed{
-    font-size:13px;
-    font-weight:600;
-    color:rgba(0,0,0,0.5);
-    white-space:nowrap;
-    flex-shrink:0;
-    padding-left:8px;
-}
-/* ── 타이틀 ── */
+.header-wrapper{display:flex;justify-content:space-between;align-items:flex-end;width:100%;padding:10px 0;border-bottom:1px solid #f0f2f6;margin-bottom:20px;}
+.brand-logo{height:65px;width:auto;}
+.team-name-fixed{font-size:14px;font-weight:600;color:rgba(0,0,0,0.5);margin-bottom:5px;}
 .main-title{color:#FF8C00!important;font-weight:800;font-size:1.85rem;}
 .customer-title{color:#FF7F50!important;font-weight:bold;font-size:1.45rem;margin-top:30px;margin-bottom:15px;}
-.admin-badge{background:#FF8C00;color:white;padding:2px 10px;border-radius:20px;font-size:12px;font-weight:bold;margin-left:8px;}
-/* ── 테이블 ── */
+.admin-badge{background:#FF8C00;color:white;padding:2px 10px;border-radius:20px;font-size:12px;font-weight:bold;margin-left:10px;}
 .qc-table-wrapper{overflow-x:auto;-webkit-overflow-scrolling:touch;width:100%;}
 .qc-table{border-collapse:collapse;margin-top:10px;font-size:clamp(10px,2.2vw,12px);border:1px solid #DEE2E6;table-layout:auto;width:100%;}
 .qc-table th{padding:clamp(4px,1.5vw,8px) clamp(6px,2vw,12px);border:1px solid #DEE2E6;text-align:center!important;vertical-align:middle!important;background-color:#F8F9FA!important;color:#000!important;font-weight:bold!important;}
 .qc-table td{padding:clamp(4px,1.5vw,8px) clamp(6px,2vw,12px);border:1px solid #DEE2E6;text-align:center!important;vertical-align:middle!important;background-color:white!important;color:#000!important;}
-/* ── NC 카드 ── */
 .nc-card{border:1px solid #DEE2E6;border-radius:10px;padding:12px 16px;margin-bottom:4px;background:white;cursor:pointer;transition:box-shadow 0.15s;}
 .nc-card:hover{box-shadow:0 2px 10px rgba(0,0,0,0.08);}
 .nc-card-selected{border-color:#FF8C00!important;border-width:2px!important;box-shadow:0 2px 10px rgba(255,140,0,0.25)!important;}
 .nc-badge{display:inline-block;padding:2px 9px;border-radius:12px;font-size:11px;font-weight:bold;background:#FFF3E0;color:#E65100;margin-right:4px;}
 .nc-badge-line{display:inline-block;padding:2px 9px;border-radius:12px;font-size:11px;font-weight:bold;background:#E8F5E9;color:#2E7D32;margin-right:4px;}
-/* ── NC 상세 ── */
 .nc-detail-box{background:white;border:1px solid #DEE2E6;border-radius:10px;overflow:hidden;margin:8px 0 16px 0;}
 .nc-detail-row{display:flex;border-bottom:1px solid #F0F0F0;}
 .nc-detail-row:last-child{border-bottom:none;}
@@ -319,28 +283,9 @@ section[data-testid="stSidebarContent"] { padding-top: 1rem; }
 .nc-loss{color:#E63946;font-weight:bold;}
 .footer-note{font-size:12.5px;color:#666;margin-top:15px;font-weight:500;}
 .guide-text{display:none;}
-/* ── 모바일 최적화 ── */
 @media(max-width:768px){
-  /* 헤더 */
-  .header-wrapper{
-    padding:6px 0;
-    min-height:48px;
-  }
-  .brand-logo{
-    height:40px;
-    max-width:140px;
-  }
-  .team-name-fixed{font-size:12px;}
-  .admin-badge{font-size:11px;padding:2px 7px;}
-  /* 가이드 */
   .guide-text{display:block;font-size:15px;font-weight:bold;color:#333;margin:15px 0;padding:15px;background:#fff4e6;border-radius:8px;border-left:5px solid #FF8C00;line-height:1.4;}
-  /* NC 상세 라벨 */
   .nc-detail-label{width:75px;min-width:75px;font-size:10px;}
-  /* 카드 패딩 */
-  .nc-card{padding:10px 12px;}
-  /* 타이틀 */
-  .main-title{font-size:1.4rem;}
-  .customer-title{font-size:1.2rem;}
 }
 </style>
 """, unsafe_allow_html=True)
@@ -355,7 +300,7 @@ def render_header():
     badge = "<span class=\"admin-badge\">🔓 관리자 모드</span>" if st.session_state.is_admin else ""
     st.markdown(
         "<div class=\"header-wrapper\">"
-        "<div class=\"header-logo-wrap\">" + logo + "</div>"
+        "<div>" + logo + "</div>"
         "<div class=\"team-name-fixed\">품질기술팀" + badge + "</div>"
         "</div>", unsafe_allow_html=True)
 
@@ -365,24 +310,30 @@ def render_admin_login():
     st.sidebar.markdown("---")
     if not st.session_state.is_admin:
         with st.sidebar.expander("🔐 관리자 로그인"):
-            pw = st.text_input("비밀번호", type="password", key="admin_pw_input",
-                               help="입력 후 엔터 또는 로그인 버튼")
-            if st.button("로그인", key="admin_login_btn"):
+            # expander 컨텍스트 내부에서는 st.xxx (sidebar 접두사 없이) 사용
+            pw = st.text_input(
+                "비밀번호", type="password", key="admin_pw_input",
+                help="입력 후 엔터 또는 로그인 버튼"
+            )
+            login_clicked = st.button("로그인", key="admin_login_btn")
+            if login_clicked:
                 if pw == ADMIN_PASSWORD:
                     st.session_state.is_admin = True
+                    st.session_state["_pw_enter"] = ""
                     st.rerun()
                 else:
                     st.error("비밀번호가 틀렸습니다.")
-            # 엔터키 지원
-            if pw and pw == ADMIN_PASSWORD and st.session_state.get("_pw_enter") != pw:
+            # 엔터키 지원: 비밀번호 입력 후 즉시 로그인
+            elif pw and pw == ADMIN_PASSWORD and st.session_state.get("_pw_enter") != pw:
                 st.session_state["_pw_enter"] = pw
                 st.session_state.is_admin = True
                 st.rerun()
     else:
-        if st.sidebar.button("🔒 관리자 로그아웃"):
+        if st.sidebar.button("🔒 관리자 로그아웃", key="admin_logout_btn"):
             for k in ["is_admin", "edit_idx", "show_add_form",
                       "nc_edit_idx", "nc_show_add", "nc_sel_idx"]:
                 st.session_state[k] = False if k == "is_admin" else None
+            st.session_state["_pw_enter"] = ""
             st.rerun()
 
 
@@ -580,15 +531,8 @@ def render_nc_edit_form(df, idx):
 # ── MAIN ─────────────────────────────────────────────────────────
 def main():
     render_header()
-
-    # ── 페이지 서브타이틀 ──
-    st.markdown(
-        "<div style='margin-bottom:24px;'>"
-        "<div style='color:#FF8C00;font-size:0.78rem;font-weight:700;letter-spacing:2px;text-transform:uppercase;margin-bottom:4px;'>📋 QUALITY MANAGEMENT SYSTEM</div>"
-        "<div class='main-title'>품질 통합 관리 시스템</div>"
-        "</div>",
-        unsafe_allow_html=True
-    )
+    render_admin_login()  # 사이드바 로그인은 탭과 무관하게 항상 최상단에서 한 번만 렌더
+    st.markdown("<div class=\"main-title\">📋 품질 통합 관리 시스템</div>", unsafe_allow_html=True)
 
     if st.session_state.is_admin:
         tab1, tab2, tab3, tab4 = st.tabs(["📄 고객 사양서", "⚖️ 품질 보증 기준", "🏭 제강사 정보", "🚨 부적합 관리"])
@@ -650,7 +594,6 @@ def main():
                         "<div style=\"background:#F8F9FA;width:85px;min-width:85px;padding:10px 4px;font-weight:bold;color:" + col_c + ";border-right:1px solid #DEE2E6;display:flex;align-items:center;justify-content:center;text-align:center;font-size:12px;line-height:1.2;word-break:keep-all;\">" + str(col_n) + "</div>"
                         "<div class=\"notranslate\" translate=\"no\" style=\"flex:1;padding:10px;background:white;font-size:13.5px;line-height:1.4;color:#212529;font-weight:500;word-break:break-all;\">" + val + "</div>"
                         "</div>", unsafe_allow_html=True)
-        render_admin_login()
 
     # ── 탭2 ──────────────────────────────────────────────────────
     with tab2:
@@ -752,8 +695,7 @@ def main():
                         "position:relative;"
                         "border:" + border_w + " solid " + border_col + ";"
                         "box-shadow:" + shadow + ";"
-                        "border-radius:10px 10px 0 0;"
-                        "padding:12px 16px 10px 16px;"
+                        "border-radius:10px;padding:12px 16px 12px 16px;"
                         "margin-bottom:0px;background:white;'>"
 
                         # 카드 내용
@@ -774,19 +716,13 @@ def main():
                         unsafe_allow_html=True
                     )
 
-                    # 카드 바로 아래 붙는 열기/닫기 버튼 (모바일/PC 공통)
+                    # 투명 전체너비 버튼 → 카드 클릭처럼 동작
+                    # 버튼 자체는 카드 아래 붙어있고 use_container_width로 카드 폭과 동일
+                    # CSS로 margin-top:-1px 처리해 카드와 시각적으로 연결
                     st.markdown(
                         "<style>"
-                        "div[data-testid='stButton'] > button {"
-                        "  border-radius:0 0 10px 10px !important;"
-                        "  margin-top:0px !important;"
-                        "  border-top:none !important;"
-                        "  background-color:" + ("#FFF3E0" if is_sel else "#f8f9fa") + " !important;"
-                        "  color:" + ("#E65100" if is_sel else "#555") + " !important;"
-                        "  font-size:12px !important;"
-                        "  height:32px !important;"
-                        "  min-height:32px !important;"
-                        "}"
+                        "div[data-testid='stButton'] > button[kind='secondary']"
+                        "{margin-top:0px!important;}"
                         "</style>",
                         unsafe_allow_html=True
                     )
