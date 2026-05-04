@@ -187,8 +187,8 @@ def show_home():
 <!-- ── 배너 ── -->
 <div style="
     position: relative;
-    width: 90%;
-    min-height: 100px;
+    width: 100%;
+    min-height: 220px;
     overflow: hidden;
     background: #0d0d0d;
     display: flex;
@@ -204,20 +204,20 @@ def show_home():
     background-size:cover;background-position:center 30%;
     opacity:0.32;filter:grayscale(15%);"></div>
   <div style="position:absolute;inset:0;
-    background:linear-gradient(140deg,rgba(10,10,10,0.92) 0%,rgba(20,20,20,0.68) 55%,rgba(200,90,0,0.10) 100%);
+    background:linear-gradient(140deg,rgba(10,10,10,0.92) 0%,rgba(20,20,20,0.68) 55%,rgba(255,140,0,0.10) 100%);
   "></div>
 
   <!-- 상단 로고 + 배지 -->
   <div style="position:relative;z-index:2;display:flex;justify-content:space-between;align-items:center;flex-wrap:nowrap;gap:8px;">
     <div style="flex-shrink:0;">{logo_tag}</div>
     <div style="
-      background:rgba(200,90,0,0.2);
-      border:1px solid rgba(200,90,0,0.5);
+      background:rgba(255,140,0,0.2);
+      border:1px solid rgba(255,140,0,0.5);
       color:#FFB347;
-      font-size:clamp(8px,2.5vw,8px);
-      font-weight:600;
+      font-size:clamp(9px,2.5vw,11px);
+      font-weight:700;
       padding:4px 10px;
-      border-radius:15px;
+      border-radius:20px;
       letter-spacing:0.06em;
       white-space:nowrap;
       flex-shrink:0;
