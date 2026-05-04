@@ -161,21 +161,22 @@ def run():
             format="YYYY/MM/DD", key="coil_to"
         )
 
-    # 제강사 / 강종 / 재질 / 두께: 타이핑 → 즉시 필터
+    # 제강사 / 강종 / 재질 / 두께: 4칸 필터
     s1, s2, s3, s4 = st.columns(4)
 
     maker_vals = sorted(df["제강사"].dropna().unique().tolist()) if "제강사" in df.columns else []
     grade_vals = sorted(df["강종"].dropna().unique().tolist())   if "강종"   in df.columns else []
     mat_vals   = sorted(df["재질"].dropna().unique().tolist())   if "재질"   in df.columns else []
+    thk_vals   = sorted(df["두께"].dropna().unique().tolist())   if "두께"   in df.columns else []
 
     with s1:
         maker_q = st.text_input("제강사", placeholder=f"예: {maker_vals[0] if maker_vals else 'ANF'}", key="coil_maker")
     with s2:
         grade_q = st.text_input("강종",   placeholder=f"예: {grade_vals[0] if grade_vals else 'GI'}",  key="coil_grade")
     with s3:
-        mat_q   = st.text_input("재질",   placeholder=f"예: {mat_vals[0] if mat_vals else 'SGC'}", key="coil_mat")
+        mat_q   = st.text_input("재질",   placeholder=f"예: {mat_vals[0]   if mat_vals   else 'SGC'}", key="coil_mat")
     with s4:
-        thick_q = st.text_input("두께",   placeholder="예: 1.6", key="coil_thick")
+        thk_q   = st.text_input("두께",   placeholder=f"예: {thk_vals[0]   if thk_vals   else '1.2'}", key="coil_thk")
 
     # 입력 중 후보 미리보기
     if maker_q:
@@ -194,6 +195,14 @@ def run():
         hits = [v for v in mat_vals if mat_q.lower() in v.lower()]
         if hits:
             st.caption("재질 후보: " + " / ".join(hits[:8]))
+    if thk_q:
+        try:
+            thk_num = float(thk_q)
+            hits = [str(round(v, 2)) for v in thk_vals if abs(float(v) - thk_num) < 0.001]
+        except ValueError:
+            hits = []
+        if hits:
+            st.caption("두께 후보: " + " / ".join(hits[:8]))
 
     st.markdown('</div>', unsafe_allow_html=True)
 
@@ -214,14 +223,17 @@ def run():
         else:
             mask &= df["제강사"].str.contains(maker_q, case=False, na=False)
     # 강종: 완전일치 → 시작일치 → 포함일치 순서로 우선순위 적용
+    # PO 검색 시 POSMAC이 겹치지 않도록 완전일치가 있으면 완전일치만 사용
     if grade_q:
         gq = grade_q.upper().strip()
-        exact_hits    = [v for v in grade_vals if v.upper() == gq]
-        starts_hits   = [v for v in grade_vals if v.upper().startswith(gq) and v.upper() != gq]
+        exact_hits   = [v for v in grade_vals if v.upper() == gq]
+        starts_hits  = [v for v in grade_vals if v.upper().startswith(gq) and v.upper() != gq]
         contains_hits = [v for v in grade_vals if gq in v.upper() and not v.upper().startswith(gq)]
         if exact_hits:
+            # 완전일치가 있으면 그것만 사용 (PO → PO만, POSMAC 제외)
             grade_hits = exact_hits
         elif starts_hits:
+            # 시작일치만 (예: POS → POSMAC 등)
             grade_hits = starts_hits
         else:
             grade_hits = contains_hits
@@ -236,13 +248,6 @@ def run():
             mask &= df["재질"].isin(mat_hits)
         else:
             mask &= df["재질"].str.contains(mat_q, case=False, na=False)
-    # 두께: 정확히 일치
-    if thick_q:
-        try:
-            thick_val = float(thick_q)
-            mask &= df["두께"] == thick_val
-        except ValueError:
-            st.warning("두께는 숫자로 입력해주세요. 예: 1.6")
 
     filtered = df[mask].copy()
     filtered = filtered.sort_values("재단일", ascending=False)
