@@ -187,8 +187,8 @@ def show_home():
 <!-- ── 배너 ── -->
 <div style="
     position: relative;
-    width: 100%;
-    min-height: 220px;
+    width: 90%;
+    min-height: 200px;
     overflow: hidden;
     background: #0d0d0d;
     display: flex;
