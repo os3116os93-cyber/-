@@ -259,6 +259,27 @@ def run():
 
     st.caption(f"총 **{len(filtered):,}건** | {date_from} ~ {date_to}  *(전체: {len(df):,}건)*")
 
+    # ── 요약 카드 (L/C/R 평균 통계) ──────────────────────────────
+    if not filtered.empty and all(c in filtered.columns for c in ["L 평균", "C 평균", "R 평균"]):
+        l_col = filtered["L 평균"].dropna()
+        c_col = filtered["C 평균"].dropna()
+        r_col = filtered["R 평균"].dropna()
+        clr_all = pd.concat([l_col, c_col, r_col])
+        st.markdown("""
+<style>
+.summary-wrap{display:flex;gap:12px;margin-bottom:12px;flex-wrap:wrap;}
+.summary-card{flex:1;min-width:160px;background:#f8fafc;border:1.5px solid #e2e8f0;border-radius:10px;padding:12px 16px;}
+.summary-card .label{font-size:12px;font-weight:700;color:#64748b;margin-bottom:6px;}
+.summary-card .avg{font-size:20px;font-weight:800;color:#1e293b;}
+.summary-card .minmax{font-size:11px;color:#94a3b8;margin-top:4px;}
+</style>""", unsafe_allow_html=True)
+        def _card(label, s):
+            if s.empty: return f'<div class="summary-card"><div class="label">{label}</div><div class="avg">-</div></div>'
+            return f'<div class="summary-card"><div class="label">{label}</div><div class="avg">{s.mean():.3f}</div><div class="minmax">최소 {s.min():.3f} ~ 최대 {s.max():.3f}</div></div>'
+        clr_card = f'<div class="summary-card"><div class="label">C, L, R 평균</div><div class="avg">{clr_all.mean():.3f}</div><div class="minmax">최소 {clr_all.min():.3f} ~ 최대 {clr_all.max():.3f}</div></div>'
+        st.markdown(f'<div class="summary-wrap">{_card("L 평균값", l_col)}{_card("C 평균값", c_col)}{_card("R 평균값", r_col)}{clr_card}</div>', unsafe_allow_html=True)
+
+
     # ── 표시 컬럼 ────────────────────────────────────────────────
     show_cols  = [c for c in DISPLAY_COLS if c in filtered.columns]
     display_df = filtered[show_cols].copy()
