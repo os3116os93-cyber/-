@@ -5,6 +5,7 @@ app_coil.py — 중간검사성적서 (코일 실두께 데이터 뷰어)
 import streamlit as st
 import pandas as pd
 import gspread
+import numpy as np
 from google.oauth2.service_account import Credentials
 from collections import Counter
 from datetime import date
@@ -31,8 +32,7 @@ DISPLAY_COLS = [
     "실두께평균", "최소실두께", "최대실두께", "차이",
 ]
 
-
-@st.cache_resource(ttl=10)
+# 캐시 해제: 연결 객체는 캐싱하지 않아야 최신 상태 유지가 유리함
 def get_gsheet_client():
     try:
         creds = Credentials.from_service_account_info(
@@ -42,12 +42,12 @@ def get_gsheet_client():
         st.error(f"구글 시트 연결 실패: {e}")
         return None
 
-
 def _ws_to_df(ws):
     """워크시트 → DataFrame. 중복 헤더 자동 _1/_2/_3 처리."""
     all_values = ws.get_all_values()
     if not all_values or len(all_values) < 2:
         return pd.DataFrame()
+    
     raw = [h.strip() for h in all_values[0]]
     cnt = Counter(raw)
     seen = {}
@@ -58,12 +58,21 @@ def _ws_to_df(ws):
             headers.append(f"{h}_{seen[h]}")
         else:
             headers.append(h)
+            
     df = pd.DataFrame(all_values[1:], columns=headers)
-    df = df[df.iloc[:, 0].str.strip() != ""].copy()
+    
+    # [수정] 빈 행 처리 강화: 구글 시트에서 내용만 지운 경우(유령 행) 제거
+    df = df.replace(r'^\s*$', np.nan, regex=True)
+    df = df.dropna(how='all').copy()
+    
+    # 첫 번째 열이 비어있는 경우 데이터가 없는 것으로 간주하여 제외
+    if not df.empty:
+        df = df[df.iloc[:, 0].notna()].copy()
+    
     return df
 
-
-@st.cache_data(ttl=10)
+# [수정] ttl을 5초로 변경하여 실시간성을 높임
+@st.cache_data(ttl=5)
 def load_data():
     client = get_gsheet_client()
     if not client:
@@ -74,13 +83,16 @@ def load_data():
         df = _ws_to_df(ws)
         if df.empty:
             return df
+        
         # 날짜 파싱
         df["재단일"] = pd.to_datetime(df["재단일"], errors="coerce")
         df = df[df["재단일"].notna()].copy()
+        
         # 숫자 변환
         for c in df.columns:
             if c not in TEXT_COLS and c != "재단일":
                 df[c] = pd.to_numeric(df[c], errors="coerce")
+                
         # 측정값 평균 계산 (L/C/R)
         for avg_col, src_cols in MEASURE_GROUPS.items():
             exist = [c for c in src_cols if c in df.columns]
@@ -89,7 +101,6 @@ def load_data():
     except Exception as e:
         st.error(f"데이터 로드 실패: {e}")
         return pd.DataFrame()
-
 
 def run():
     st.markdown("""
@@ -102,7 +113,6 @@ def run():
     box-shadow:0 1px 4px rgba(0,0,0,0.05);
 }
 .filter-label { font-size:12px; font-weight:700; color:#374151; margin-bottom:8px; }
-/* 좌우 여백 */
 .block-container { padding-left:2rem !important; padding-right:2rem !important; }
 </style>
 """, unsafe_allow_html=True)
@@ -111,8 +121,8 @@ def run():
     st.markdown('<div class="coil-sub">코일 실두께 측정 데이터 조회</div>', unsafe_allow_html=True)
 
     if st.button("🔄 데이터 새로고침", key="coil_refresh"):
-        load_data.clear()
-        st.cache_resource.clear()
+        # [수정] 캐시를 확실하게 비우도록 변경
+        st.cache_data.clear()
         st.rerun()
 
     with st.spinner("데이터 불러오는 중..."):
@@ -129,7 +139,6 @@ def run():
     st.markdown('<div class="filter-wrap">', unsafe_allow_html=True)
     st.markdown('<div class="filter-label">🔍 조회 조건</div>', unsafe_allow_html=True)
 
-    # 날짜: 시작일 / 종료일 한 줄 (YYYY/MM/DD 포맷으로 영문 월 방지)
     d1, d2 = st.columns(2)
     with d1:
         date_from = st.date_input(
@@ -144,9 +153,7 @@ def run():
             format="YYYY/MM/DD", key="coil_to"
         )
 
-    # 제강사 / 강종 / 재질: 타이핑 → 즉시 필터 (selectbox 없이 한 단계로)
     s1, s2, s3 = st.columns(3)
-
     maker_vals = sorted(df["제강사"].dropna().unique().tolist()) if "제강사" in df.columns else []
     grade_vals = sorted(df["강종"].dropna().unique().tolist())   if "강종"   in df.columns else []
     mat_vals   = sorted(df["재질"].dropna().unique().tolist())   if "재질"   in df.columns else []
@@ -158,19 +165,15 @@ def run():
     with s3:
         mat_q   = st.text_input("재질",   placeholder=f"예: {mat_vals[0]   if mat_vals   else 'SGC'}", key="coil_mat")
 
-    # 입력 중 후보 미리보기 (선택 단계 없이 자동 필터)
     if maker_q:
         hits = [v for v in maker_vals if maker_q.lower() in v.lower()]
-        if hits:
-            st.caption("제강사 후보: " + " / ".join(hits[:8]))
+        if hits: st.caption("제강사 후보: " + " / ".join(hits[:8]))
     if grade_q:
         hits = [v for v in grade_vals if grade_q.lower() in v.lower()]
-        if hits:
-            st.caption("강종 후보: " + " / ".join(hits[:8]))
+        if hits: st.caption("강종 후보: " + " / ".join(hits[:8]))
     if mat_q:
         hits = [v for v in mat_vals if mat_q.lower() in v.lower()]
-        if hits:
-            st.caption("재질 후보: " + " / ".join(hits[:8]))
+        if hits: st.caption("재질 후보: " + " / ".join(hits[:8]))
 
     st.markdown('</div>', unsafe_allow_html=True)
 
@@ -183,27 +186,15 @@ def run():
         (df["재단일"].dt.date >= date_from) &
         (df["재단일"].dt.date <= date_to)
     )
-    # 제강사: 부분일치
     if maker_q:
         maker_hits = [v for v in maker_vals if maker_q.lower() in v.lower()]
-        if maker_hits:
-            mask &= df["제강사"].isin(maker_hits)
-        else:
-            mask &= df["제강사"].str.contains(maker_q, case=False, na=False)
-    # 강종: 부분일치
+        mask &= df["제강사"].isin(maker_hits) if maker_hits else df["제강사"].str.contains(maker_q, case=False, na=False)
     if grade_q:
         grade_hits = [v for v in grade_vals if grade_q.lower() in v.lower()]
-        if grade_hits:
-            mask &= df["강종"].isin(grade_hits)
-        else:
-            mask &= df["강종"].str.contains(grade_q, case=False, na=False)
-    # 재질: 부분일치
+        mask &= df["강종"].isin(grade_hits) if grade_hits else df["강종"].str.contains(grade_q, case=False, na=False)
     if mat_q:
         mat_hits = [v for v in mat_vals if mat_q.lower() in v.lower()]
-        if mat_hits:
-            mask &= df["재질"].isin(mat_hits)
-        else:
-            mask &= df["재질"].str.contains(mat_q, case=False, na=False)
+        mask &= df["재질"].isin(mat_hits) if mat_hits else df["재질"].str.contains(mat_q, case=False, na=False)
 
     filtered = df[mask].copy()
     filtered = filtered.sort_values("재단일", ascending=False)
@@ -215,27 +206,20 @@ def run():
     show_cols  = [c for c in DISPLAY_COLS if c in filtered.columns]
     display_df = filtered[show_cols].copy()
 
-    # 차이값 색상
     def color_diff(val):
         try:
             v = float(val)
             if v < -0.05:  return "color:#1565C0;font-weight:600"
             elif v > 0.05: return "color:#C62828;font-weight:600"
-        except:
-            pass
+        except: pass
         return ""
 
     styled = display_df.style
     if "차이" in display_df.columns:
         styled = styled.applymap(color_diff, subset=["차이"])
 
-    # 소수점 포맷
-    fmt = {}
-    for c in display_df.columns:
-        if c in ("두께", "폭", "중량"):
-            fmt[c] = "{:.0f}"
-        elif c not in TEXT_COLS and c != "재단일":
-            fmt[c] = "{:.2f}"
+    fmt = {c: "{:.0f}" if c in ("두께", "폭", "중량") else "{:.2f}" 
+           for c in display_df.columns if c not in TEXT_COLS and c != "재단일"}
     styled = styled.format(fmt, na_rep="-")
 
     st.dataframe(
@@ -253,3 +237,6 @@ def run():
         file_name=f"중간검사성적서_{date_from}_{date_to}.csv",
         mime="text/csv"
     )
+
+if __name__ == "__main__":
+    run()
