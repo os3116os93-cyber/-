@@ -188,7 +188,7 @@ def show_home():
 <div style="
     position: relative;
     width: 90%;
-    min-height: 200px;
+    min-height: 100px;
     overflow: hidden;
     background: #0d0d0d;
     display: flex;
