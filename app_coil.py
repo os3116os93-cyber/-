@@ -101,6 +101,9 @@ def load_data():
         else:
             for col in ["실두께평균", "최소실두께", "최대실두께", "차이"]:
                 df[col] = None
+        # [확인용 코드 추가] 
+        # 화면에 실제 시트에서 읽어온 컬럼명들을 리스트로 보여줍니다.
+        # st.write("실제 인식된 컬럼명:", df.columns.tolist()) 
 
         return df
     except Exception as e:
