@@ -261,7 +261,12 @@ def run():
 
     styled = display_df.style
     if "차이" in display_df.columns:
-        styled = styled.applymap(color_diff, subset=["차이"])
+        try:
+            # pandas >= 2.1
+            styled = styled.map(color_diff, subset=["차이"])
+        except AttributeError:
+            # pandas < 2.1
+            styled = styled.applymap(color_diff, subset=["차이"])
 
     # 소수점 포맷
     fmt = {}
