@@ -139,9 +139,6 @@ def run():
         st.info("통합뷰 시트에 데이터가 없습니다.")
         return
 
-    with st.expander("🔧 디버그: 읽어온 컬럼 확인", expanded=False):
-        st.write(df.columns.tolist())
-
     total_min = df["재단일"].min().date()
     total_max = df["재단일"].max().date()
 
