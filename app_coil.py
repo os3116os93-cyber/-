@@ -169,16 +169,6 @@ def run():
         st.info("통합뷰 시트에 데이터가 없습니다.")
         return
 
-    # ── 시트 컬럼 확인용 디버그 (문제 발생 시 확인) ──
-    with st.expander("🔧 시트 컬럼 확인 (디버그)", expanded=False):
-        st.caption("구글 시트에서 읽어온 실제 컬럼 목록:")
-        st.code(", ".join(df.columns.tolist()))
-        missing = [c for c in ["재단일","제강사","강종","재질","두께"] if c not in df.columns]
-        if missing:
-            st.warning(f"⚠️ 아래 컬럼이 시트에 없습니다: {missing}")
-        else:
-            st.success("✅ 주요 컬럼 모두 정상 확인")
-
     total_min = df["재단일"].min().date()
     total_max = df["재단일"].max().date()
 
