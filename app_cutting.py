@@ -232,7 +232,7 @@ def run():
     # 사이드바 복원 + 본문 여백 설정
     st.markdown("""
 <style>
-/* 홈 페이지에서 숨겨진 사이드바 강제 복원 */
+/* 사이드바 강제 복원 */
 html body section[data-testid="stSidebar"],
 html body [data-testid="stSidebar"],
 section[data-testid="stSidebar"] {
@@ -241,18 +241,24 @@ section[data-testid="stSidebar"] {
     opacity: 1 !important;
     width: auto !important;
 }
+/* 사이드바 접기/펼치기 화살표 아이콘 깨짐 방지 */
+[data-testid="stSidebarCollapsedControl"] { display: none !important; }
+button[data-testid="baseButton-headerNoPadding"] svg { display: none !important; }
 section[data-testid="stSidebarContent"] { padding-top: 1rem; }
+
+/* 본문 와이드뷰: 사이드바 제외 메인 영역을 넓게 */
 .block-container {
-    padding-left: 2rem !important;
-    padding-right: 2rem !important;
-    padding-top: 1rem !important;
-    max-width: 1100px !important;
+    padding-left: 2.5rem !important;
+    padding-right: 2.5rem !important;
+    padding-top: 1.2rem !important;
+    max-width: 1400px !important;
     margin: 0 auto !important;
 }
 @media(max-width:768px){
   .block-container {
     padding-left: 0.8rem !important;
     padding-right: 0.8rem !important;
+    padding-top: 0.5rem !important;
   }
 }
 </style>
@@ -545,7 +551,7 @@ def render_nc_edit_form(df, idx):
 
 # ── MAIN ─────────────────────────────────────────────────────────
 def main():
-    render_header()
+    # render_header() 제거 — streamlit_app.py에서 상단배너 없이 cutting 진입
     render_admin_login()  # 사이드바 로그인은 탭과 무관하게 항상 최상단에서 한 번만 렌더
     st.markdown("<div class=\"main-title\">📋 품질 통합 관리 시스템</div>", unsafe_allow_html=True)
 
