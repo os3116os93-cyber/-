@@ -79,31 +79,14 @@ def load_data():
         if df.empty:
             return df
 
-        # ── 컬럼명 정규화: 시트 실제 헤더 → 표준명 변환 ──
-        # 구글 시트에 제강사가 2개 중복 → 제강사_1, 제강사_2로 자동 rename됨
-        # B열(제강사_1)을 제강사로, Q열(제강사_2)은 무시
+        # ── 컬럼명 alias 정규화: 시트 헤더가 다른 이름일 경우 표준명으로 변환 ──
         alias_map = {
-            # 제강사 중복 처리
-            "제강사_1": "제강사",
-            "제강사_2": "_제강사_dup_drop",   # 중복 열은 나중에 제거
-            # 공백 포함 컬럼명 정규화
-            "실두께 평균": "실두께평균",
-            "최소 실두께": "최소실두께",
-            "최대 실두께": "최대실두께",
-            # 차이 중복 처리: 차이_1(첫번째) 사용, 차이_2 무시
-            "차이_1": "차이",
-            "차이_2": "_차이_dup_drop",
-            # 기타 alias
             "제강사명": "제강사", "Mill": "제강사", "mill": "제강사",
             "MAKER": "제강사", "Maker": "제강사", "maker": "제강사",
             "강종명": "강종", "Grade": "강종", "grade": "강종",
             "재질명": "재질", "Material": "재질",
         }
         df.rename(columns={k: v for k, v in alias_map.items() if k in df.columns}, inplace=True)
-        # _drop 접미사 붙은 불필요 중복 열 제거
-        drop_cols = [c for c in df.columns if c.endswith("_dup_drop")]
-        if drop_cols:
-            df.drop(columns=drop_cols, inplace=True)
         # 날짜 파싱
         df["재단일"] = pd.to_datetime(df["재단일"], errors="coerce")
         df = df[df["재단일"].notna()].copy()
@@ -168,6 +151,16 @@ def run():
     if df.empty:
         st.info("통합뷰 시트에 데이터가 없습니다.")
         return
+
+    # ── 시트 컬럼 확인용 디버그 (문제 발생 시 확인) ──
+    with st.expander("🔧 시트 컬럼 확인 (디버그)", expanded=False):
+        st.caption("구글 시트에서 읽어온 실제 컬럼 목록:")
+        st.code(", ".join(df.columns.tolist()))
+        missing = [c for c in ["재단일","제강사","강종","재질","두께"] if c not in df.columns]
+        if missing:
+            st.warning(f"⚠️ 아래 컬럼이 시트에 없습니다: {missing}")
+        else:
+            st.success("✅ 주요 컬럼 모두 정상 확인")
 
     total_min = df["재단일"].min().date()
     total_max = df["재단일"].max().date()
