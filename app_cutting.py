@@ -313,47 +313,33 @@ def render_header():
 
 
 def render_admin_login():
-    """사이드바 관리자 로그인 — expander 없이 사이드바 전용 위젯만 사용"""
+    """사이드바 관리자 로그인"""
     st.sidebar.markdown("---")
-
     if not st.session_state.is_admin:
-        # expander를 쓰면 내부 위젯 컨텍스트가 꼬여 오류 발생 → 조건부 토글로 대체
-        if "show_login_form" not in st.session_state:
-            st.session_state.show_login_form = False
-
-        if st.sidebar.button(
-            "🔐 관리자 로그인" if not st.session_state.show_login_form else "▲ 접기",
-            key="toggle_login_form"
-        ):
-            st.session_state.show_login_form = not st.session_state.show_login_form
-            st.rerun()
-
-        if st.session_state.show_login_form:
-            pw = st.sidebar.text_input(
+        # expander는 st.sidebar.expander로 생성하되,
+        # 내부 위젯은 st.xxx (sidebar 접두사 없이) — Streamlit 컨텍스트 규칙
+        with st.sidebar.expander("🔐 관리자 로그인", expanded=False):
+            pw = st.text_input(
                 "비밀번호", type="password", key="admin_pw_input",
-                label_visibility="collapsed",
-                placeholder="비밀번호 입력 후 엔터"
+                help="입력 후 엔터 또는 로그인 버튼"
             )
-            if st.sidebar.button("로그인 확인", key="admin_login_btn"):
+            if st.button("로그인", key="admin_login_btn"):
                 if pw == ADMIN_PASSWORD:
                     st.session_state.is_admin = True
-                    st.session_state.show_login_form = False
                     st.session_state["_pw_enter"] = ""
                     st.rerun()
                 else:
-                    st.sidebar.error("비밀번호가 틀렸습니다.")
-            # 엔터키로 즉시 로그인
+                    st.error("비밀번호가 틀렸습니다.")
+            # 엔터키 지원
             if pw and pw == ADMIN_PASSWORD and st.session_state.get("_pw_enter") != pw:
                 st.session_state["_pw_enter"] = pw
                 st.session_state.is_admin = True
-                st.session_state.show_login_form = False
                 st.rerun()
     else:
         st.sidebar.markdown("🔓 **관리자 모드**")
-        if st.sidebar.button("🔒 로그아웃", key="admin_logout_btn"):
+        if st.sidebar.button("🔒 관리자 로그아웃", key="admin_logout_btn"):
             for k in ["is_admin", "edit_idx", "show_add_form",
-                      "nc_edit_idx", "nc_show_add", "nc_sel_idx",
-                      "show_login_form", "_pw_enter"]:
+                      "nc_edit_idx", "nc_show_add", "nc_sel_idx", "_pw_enter"]:
                 st.session_state[k] = False if k == "is_admin" else None
             st.rerun()
 
