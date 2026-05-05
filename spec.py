@@ -287,23 +287,12 @@ elif st.session_state.page == "coil":
     import app_coil
     app_coil.run()
 elif st.session_state.page == "cutting":
-    # cutting 페이지: 상단배너 없음
-    # 사이드바를 JS로 강제 expanded — CSS display:flex만으론 아이콘 깨짐 발생
+    # cutting 페이지: 상단배너 없음, 사이드바 강제 표시
     st.markdown("""
 <style>
 [data-testid="stSidebar"] { display: flex !important; }
 [data-testid="stSidebarCollapsedControl"] { display: none !important; }
 </style>
-<script>
-// Streamlit 사이드바 collapsed 상태 강제 해제
-(function() {
-    function expand() {
-        var btn = document.querySelector('[data-testid="stSidebarCollapsedControl"] button');
-        if (btn) { btn.click(); }
-    }
-    setTimeout(expand, 100);
-})();
-</script>
 """, unsafe_allow_html=True)
     import app_cutting
     app_cutting.run()
