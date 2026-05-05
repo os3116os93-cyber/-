@@ -551,8 +551,33 @@ def render_nc_edit_form(df, idx):
 
 # ── MAIN ─────────────────────────────────────────────────────────
 def main():
-    # render_header() 제거 — streamlit_app.py에서 상단배너 없이 cutting 진입
-    render_admin_login()  # 사이드바 로그인은 탭과 무관하게 항상 최상단에서 한 번만 렌더
+    # ── 사이드바: 탭 컨텍스트 밖에서 모든 사이드바 위젯 렌더 ──────
+    if st.sidebar.button("← 홈으로 돌아가기", key="cutting_home_btn"):
+        st.session_state.page = "home"
+        st.rerun()
+
+    render_admin_login()
+
+    # 고객사 목록은 탭 밖에서 사이드바에 렌더 (탭 안에서 st.sidebar 호출 시 오류 발생)
+    df_cust = load_customer_data()
+    customer_list = df_cust.iloc[:, 0].tolist() if df_cust is not None else []
+
+    if df_cust is not None:
+        st.sidebar.header("🏢 고객사 목록")
+        if st.session_state.is_admin:
+            if st.sidebar.button("➕ 고객사 추가", key="open_add_form"):
+                st.session_state.show_add_form = True
+                st.session_state.edit_idx = None
+        sel_idx = st.sidebar.radio(
+            "업체를 선택하세요:",
+            options=list(range(len(df_cust))),
+            format_func=lambda i: customer_list[i],
+            index=None, key="customer_radio"
+        )
+    else:
+        sel_idx = None
+
+    # ── 본문 ────────────────────────────────────────────────────
     st.markdown("<div class=\"main-title\">📋 품질 통합 관리 시스템</div>", unsafe_allow_html=True)
 
     if st.session_state.is_admin:
@@ -563,58 +588,48 @@ def main():
 
     # ── 탭1 ──────────────────────────────────────────────────────
     with tab1:
-        df_cust = load_customer_data()
-        if df_cust is not None:
-            customer_list = df_cust.iloc[:, 0].tolist()
-            st.sidebar.header("🏢 고객사 목록")
+        if df_cust is None:
+            st.info("고객사 데이터를 불러올 수 없습니다.")
+        elif sel_idx is None and not st.session_state.show_add_form and st.session_state.edit_idx is None:
+            st.markdown("<div class=\"guide-text\">좌상단 화살표를 눌러 고객사를 선택하십시오.</div>", unsafe_allow_html=True)
+        elif st.session_state.is_admin and st.session_state.show_add_form:
+            render_add_form(df_cust)
+        elif st.session_state.is_admin and st.session_state.edit_idx is not None:
+            render_edit_form(df_cust, st.session_state.edit_idx)
+        elif sel_idx is not None:
+            row = df_cust.iloc[sel_idx]
+            st.markdown("<div class=\"customer-title\">■ " + str(row.iloc[0]) + "</div>", unsafe_allow_html=True)
             if st.session_state.is_admin:
-                if st.sidebar.button("➕ 고객사 추가", key="open_add_form"):
-                    st.session_state.show_add_form = True
-                    st.session_state.edit_idx = None
-            sel_idx = st.sidebar.radio("업체를 선택하세요:",
-                options=list(range(len(df_cust))),
-                format_func=lambda i: customer_list[i],
-                index=None, key="customer_radio")
-            if sel_idx is None and not st.session_state.show_add_form and st.session_state.edit_idx is None:
-                st.markdown("<div class=\"guide-text\">좌상단 >> 화살표를 눌러 고객사를 선택 하십시오.</div>", unsafe_allow_html=True)
-            if st.session_state.is_admin and st.session_state.show_add_form:
-                render_add_form(df_cust)
-            elif st.session_state.is_admin and st.session_state.edit_idx is not None:
-                render_edit_form(df_cust, st.session_state.edit_idx)
-            elif sel_idx is not None:
-                row = df_cust.iloc[sel_idx]
-                st.markdown("<div class=\"customer-title\">■ " + str(row.iloc[0]) + "</div>", unsafe_allow_html=True)
-                if st.session_state.is_admin:
-                    a1, a2, _ = st.columns([1, 1, 8])
-                    if a1.button("수정", key="edit_btn"):
-                        st.session_state.edit_idx = sel_idx
-                        st.session_state.show_add_form = False
-                        st.rerun()
-                    if a2.button("삭제", key="delete_btn"):
-                        st.session_state["confirm_delete_" + str(sel_idx)] = True
-                    if st.session_state.get("confirm_delete_" + str(sel_idx), False):
-                        st.warning("**'" + str(row.iloc[0]) + "'** 고객사를 정말 삭제하시겠습니까?")
-                        d1, d2 = st.columns([1, 5])
-                        if d1.button("확인 삭제", key="confirm_del"):
-                            updated = df_cust.drop(index=sel_idx).reset_index(drop=True)
-                            if save_customer_data(updated):
-                                st.session_state["confirm_delete_" + str(sel_idx)] = False
-                                st.success("삭제되었습니다.")
-                                st.rerun()
-                        if d2.button("취소", key="cancel_del"):
+                a1, a2, _ = st.columns([1, 1, 8])
+                if a1.button("수정", key="edit_btn"):
+                    st.session_state.edit_idx = sel_idx
+                    st.session_state.show_add_form = False
+                    st.rerun()
+                if a2.button("삭제", key="delete_btn"):
+                    st.session_state["confirm_delete_" + str(sel_idx)] = True
+                if st.session_state.get("confirm_delete_" + str(sel_idx), False):
+                    st.warning("**'" + str(row.iloc[0]) + "'** 고객사를 정말 삭제하시겠습니까?")
+                    d1, d2 = st.columns([1, 5])
+                    if d1.button("확인 삭제", key="confirm_del"):
+                        updated = df_cust.drop(index=sel_idx).reset_index(drop=True)
+                        if save_customer_data(updated):
                             st.session_state["confirm_delete_" + str(sel_idx)] = False
+                            st.success("삭제되었습니다.")
                             st.rerun()
-                for i in range(1, len(row.index)):
-                    col_n = row.index[i]
-                    raw = row.iloc[i]
-                    val = str(raw).strip() if str(raw).strip() not in ("", "nan") else "-"
-                    is_sp = any(k in str(col_n) for k in ["특이사항", "주의", "마킹", "포장"])
-                    col_c = "#E63946" if is_sp else "#495057"
-                    st.markdown(
-                        "<div class=\"notranslate\" translate=\"no\" style=\"display:flex;border:1px solid #DEE2E6;margin-bottom:-1px;\">"
-                        "<div style=\"background:#F8F9FA;width:85px;min-width:85px;padding:10px 4px;font-weight:bold;color:" + col_c + ";border-right:1px solid #DEE2E6;display:flex;align-items:center;justify-content:center;text-align:center;font-size:12px;line-height:1.2;word-break:keep-all;\">" + str(col_n) + "</div>"
-                        "<div class=\"notranslate\" translate=\"no\" style=\"flex:1;padding:10px;background:white;font-size:13.5px;line-height:1.4;color:#212529;font-weight:500;word-break:break-all;\">" + val + "</div>"
-                        "</div>", unsafe_allow_html=True)
+                    if d2.button("취소", key="cancel_del"):
+                        st.session_state["confirm_delete_" + str(sel_idx)] = False
+                        st.rerun()
+            for i in range(1, len(row.index)):
+                col_n = row.index[i]
+                raw = row.iloc[i]
+                val = str(raw).strip() if str(raw).strip() not in ("", "nan") else "-"
+                is_sp = any(k in str(col_n) for k in ["특이사항", "주의", "마킹", "포장"])
+                col_c = "#E63946" if is_sp else "#495057"
+                st.markdown(
+                    "<div class=\"notranslate\" translate=\"no\" style=\"display:flex;border:1px solid #DEE2E6;margin-bottom:-1px;\">"
+                    "<div style=\"background:#F8F9FA;width:85px;min-width:85px;padding:10px 4px;font-weight:bold;color:" + col_c + ";border-right:1px solid #DEE2E6;display:flex;align-items:center;justify-content:center;text-align:center;font-size:12px;line-height:1.2;word-break:keep-all;\">" + str(col_n) + "</div>"
+                    "<div class=\"notranslate\" translate=\"no\" style=\"flex:1;padding:10px;background:white;font-size:13.5px;line-height:1.4;color:#212529;font-weight:500;word-break:break-all;\">" + val + "</div>"
+                    "</div>", unsafe_allow_html=True)
 
     # ── 탭2 ──────────────────────────────────────────────────────
     with tab2:
