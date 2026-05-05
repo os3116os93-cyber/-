@@ -24,7 +24,7 @@ MEASURE_GROUPS = {
     "R 평균": ["S(R)_1", "S(R)_2", "S(R)_3"],
 }
 
-# 최종 표시 컬럼 순서
+# 최종 표시 컬럼 순서 (재단일 다음에 제강사 추가)
 DISPLAY_COLS = [
     "재단일", "제강사", "강종", "재질", "두께", "폭", "중량",
     "전산두께", "L 평균", "C 평균", "R 평균",
@@ -44,15 +44,11 @@ def get_gsheet_client():
 
 
 def _ws_to_df(ws):
-    """워크시트 → DataFrame. 중복 헤더 자동 _1/_2/_3 처리. 컬럼명 공백/전각문자 정규화."""
+    """워크시트 → DataFrame. 중복 헤더 자동 _1/_2/_3 처리."""
     all_values = ws.get_all_values()
     if not all_values or len(all_values) < 2:
         return pd.DataFrame()
-    # 전각공백(　) 및 일반공백, 줄바꿈, non-breaking space 제거
-    raw = [
-        h.strip().replace("\u3000", "").replace("\xa0", "").replace("\n", "").replace("\r", "")
-        for h in all_values[0]
-    ]
+    raw = [h.strip() for h in all_values[0]]
     cnt = Counter(raw)
     seen = {}
     headers = []
@@ -78,15 +74,6 @@ def load_data():
         df = _ws_to_df(ws)
         if df.empty:
             return df
-
-        # ── 컬럼명 alias 정규화: 시트 헤더가 다른 이름일 경우 표준명으로 변환 ──
-        alias_map = {
-            "제강사명": "제강사", "Mill": "제강사", "mill": "제강사",
-            "MAKER": "제강사", "Maker": "제강사", "maker": "제강사",
-            "강종명": "강종", "Grade": "강종", "grade": "강종",
-            "재질명": "재질", "Material": "재질",
-        }
-        df.rename(columns={k: v for k, v in alias_map.items() if k in df.columns}, inplace=True)
         # 날짜 파싱
         df["재단일"] = pd.to_datetime(df["재단일"], errors="coerce")
         df = df[df["재단일"].notna()].copy()
@@ -114,6 +101,9 @@ def load_data():
         else:
             for col in ["실두께평균", "최소실두께", "최대실두께", "차이"]:
                 df[col] = None
+        # [확인용 코드 추가] 
+        # 화면에 실제 시트에서 읽어온 컬럼명들을 리스트로 보여줍니다.
+        # st.write("실제 인식된 컬럼명:", df.columns.tolist()) 
 
         return df
     except Exception as e:
@@ -152,16 +142,6 @@ def run():
         st.info("통합뷰 시트에 데이터가 없습니다.")
         return
 
-    # ── 시트 컬럼 확인용 디버그 (문제 발생 시 확인) ──
-    with st.expander("🔧 시트 컬럼 확인 (디버그)", expanded=False):
-        st.caption("구글 시트에서 읽어온 실제 컬럼 목록:")
-        st.code(", ".join(df.columns.tolist()))
-        missing = [c for c in ["재단일","제강사","강종","재질","두께"] if c not in df.columns]
-        if missing:
-            st.warning(f"⚠️ 아래 컬럼이 시트에 없습니다: {missing}")
-        else:
-            st.success("✅ 주요 컬럼 모두 정상 확인")
-
     total_min = df["재단일"].min().date()
     total_max = df["재단일"].max().date()
 
@@ -169,7 +149,7 @@ def run():
     st.markdown('<div class="filter-wrap">', unsafe_allow_html=True)
     st.markdown('<div class="filter-label">🔍 조회 조건</div>', unsafe_allow_html=True)
 
-    # 날짜: 시작일 / 종료일 한 줄 (YYYY/MM/DD 포맷으로 영문 월 방지)
+    # 날짜: 시작일 / 종료일
     d1, d2 = st.columns(2)
     with d1:
         date_from = st.date_input(
@@ -197,9 +177,9 @@ def run():
     with s2:
         grade_q = st.text_input("강종",   placeholder=f"예: {grade_vals[0] if grade_vals else 'GI'}",  key="coil_grade")
     with s3:
-        mat_q   = st.text_input("재질",   placeholder=f"예: {mat_vals[0]   if mat_vals   else 'SGC'}", key="coil_mat")
+        mat_q   = st.text_input("재질",   placeholder=f"예: {mat_vals[0] if mat_vals else 'SGC'}", key="coil_mat")
     with s4:
-        thk_q   = st.text_input("두께",   placeholder=f"예: {thk_vals[0]   if thk_vals   else '1.2'}", key="coil_thk")
+        thk_q   = st.text_input("두께",   placeholder=f"예: {thk_vals[0] if thk_vals else '1.20'}", key="coil_thk")
 
     # 입력 중 후보 미리보기
     if maker_q:
@@ -208,8 +188,8 @@ def run():
             st.caption("제강사 후보: " + " / ".join(hits[:8]))
     if grade_q:
         gq = grade_q.upper().strip()
-        exact = [v for v in grade_vals if v.upper() == gq]
-        starts = [v for v in grade_vals if v.upper().startswith(gq) and v.upper() != gq]
+        exact    = [v for v in grade_vals if v.upper() == gq]
+        starts   = [v for v in grade_vals if v.upper().startswith(gq) and v.upper() != gq]
         contains = [v for v in grade_vals if gq in v.upper() and not v.upper().startswith(gq)]
         hits = exact + starts + contains
         if hits:
@@ -221,11 +201,11 @@ def run():
     if thk_q:
         try:
             thk_num = float(thk_q)
-            hits = [str(round(v, 2)) for v in thk_vals if abs(float(v) - thk_num) < 0.001]
+            hits = [f"{v:.2f}" for v in thk_vals if abs(float(v) - thk_num) < 0.001]
+            if hits:
+                st.caption("두께 후보: " + " / ".join(hits[:8]))
         except ValueError:
-            hits = []
-        if hits:
-            st.caption("두께 후보: " + " / ".join(hits[:8]))
+            st.caption("두께는 숫자로 입력해주세요. 예: 1.20")
 
     st.markdown('</div>', unsafe_allow_html=True)
 
@@ -245,18 +225,15 @@ def run():
             mask &= df["제강사"].isin(maker_hits)
         else:
             mask &= df["제강사"].str.contains(maker_q, case=False, na=False)
-    # 강종: 완전일치 → 시작일치 → 포함일치 순서로 우선순위 적용
-    # PO 검색 시 POSMAC이 겹치지 않도록 완전일치가 있으면 완전일치만 사용
+    # 강종: 완전일치 → 시작일치 → 포함일치
     if grade_q:
         gq = grade_q.upper().strip()
-        exact_hits   = [v for v in grade_vals if v.upper() == gq]
-        starts_hits  = [v for v in grade_vals if v.upper().startswith(gq) and v.upper() != gq]
+        exact_hits    = [v for v in grade_vals if v.upper() == gq]
+        starts_hits   = [v for v in grade_vals if v.upper().startswith(gq) and v.upper() != gq]
         contains_hits = [v for v in grade_vals if gq in v.upper() and not v.upper().startswith(gq)]
         if exact_hits:
-            # 완전일치가 있으면 그것만 사용 (PO → PO만, POSMAC 제외)
             grade_hits = exact_hits
         elif starts_hits:
-            # 시작일치만 (예: POS → POSMAC 등)
             grade_hits = starts_hits
         else:
             grade_hits = contains_hits
@@ -271,19 +248,40 @@ def run():
             mask &= df["재질"].isin(mat_hits)
         else:
             mask &= df["재질"].str.contains(mat_q, case=False, na=False)
-    # 두께: 숫자 완전일치 (소수점 오차 0.001 이내)
+    # 두께: 두께 열만 정확히 일치 (소수점 오차 0.001 허용)
     if thk_q:
         try:
             thk_num = float(thk_q)
             mask &= df["두께"].apply(lambda x: abs(float(x) - thk_num) < 0.001 if pd.notna(x) else False)
         except ValueError:
-            pass  # 숫자가 아닌 입력은 무시
+            pass
 
     filtered = df[mask].copy()
     filtered = filtered.sort_values("재단일", ascending=False)
     filtered["재단일"] = filtered["재단일"].dt.strftime("%Y-%m-%d")
 
     st.caption(f"총 **{len(filtered):,}건** | {date_from} ~ {date_to}  *(전체: {len(df):,}건)*")
+
+    # ── 요약 카드 (L/C/R 평균 통계) ──────────────────────────────
+    if not filtered.empty and all(c in filtered.columns for c in ["L 평균", "C 평균", "R 평균"]):
+        l_col = filtered["L 평균"].dropna()
+        c_col = filtered["C 평균"].dropna()
+        r_col = filtered["R 평균"].dropna()
+        clr_all = pd.concat([l_col, c_col, r_col])
+        st.markdown("""
+<style>
+.summary-wrap{display:flex;gap:12px;margin-bottom:12px;flex-wrap:wrap;}
+.summary-card{flex:1;min-width:160px;background:#f8fafc;border:1.5px solid #e2e8f0;border-radius:10px;padding:12px 16px;}
+.summary-card .label{font-size:12px;font-weight:700;color:#64748b;margin-bottom:6px;}
+.summary-card .avg{font-size:20px;font-weight:800;color:#1e293b;}
+.summary-card .minmax{font-size:11px;color:#94a3b8;margin-top:4px;}
+</style>""", unsafe_allow_html=True)
+        def _card(label, s):
+            if s.empty: return f'<div class="summary-card"><div class="label">{label}</div><div class="avg">-</div></div>'
+            return f'<div class="summary-card"><div class="label">{label}</div><div class="avg">{s.mean():.3f}</div><div class="minmax">최소 {s.min():.3f} ~ 최대 {s.max():.3f}</div></div>'
+        clr_card = f'<div class="summary-card"><div class="label">C, L, R 평균</div><div class="avg">{clr_all.mean():.3f}</div><div class="minmax">최소 {clr_all.min():.3f} ~ 최대 {clr_all.max():.3f}</div></div>'
+        st.markdown(f'<div class="summary-wrap">{_card("L 평균값", l_col)}{_card("C 평균값", c_col)}{_card("R 평균값", r_col)}{clr_card}</div>', unsafe_allow_html=True)
+
 
     # ── 표시 컬럼 ────────────────────────────────────────────────
     show_cols  = [c for c in DISPLAY_COLS if c in filtered.columns]
@@ -302,19 +300,15 @@ def run():
     styled = display_df.style
     if "차이" in display_df.columns:
         try:
-            # pandas >= 2.1
             styled = styled.map(color_diff, subset=["차이"])
         except AttributeError:
-            # pandas < 2.1
             styled = styled.applymap(color_diff, subset=["차이"])
 
-    # 소수점 포맷
+    # 소수점 포맷 - 두께 소수점 2자리 표시 (반올림 없음), 폭/중량만 정수
     fmt = {}
     for c in display_df.columns:
         if c in ("폭", "중량"):
-            fmt[c] = "{:.0f}"          # 폭·중량은 정수
-        elif c == "두께":
-            fmt[c] = "{:.2f}"          # 두께는 소수점 2자리
+            fmt[c] = "{:.0f}"
         elif c not in TEXT_COLS and c != "재단일":
             fmt[c] = "{:.2f}"
     styled = styled.format(fmt, na_rep="-")
