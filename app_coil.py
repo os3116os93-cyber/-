@@ -322,11 +322,9 @@ def run():
                        for c in show_cols if c not in TEXT_COLS and c != "재단일"}
     )
 
-    raw_csv = filtered.to_csv(index=False, encoding="utf-8-sig")[cite: 1]
-
-st.download_button(
-    label="⬇️ 구글 시트 원본 데이터(CSV) 추출", 
-    data=raw_csv,
-    file_name=f"중간검사_원본_{date_from}_{date_to}.csv",
-    mime="text/csv"
-)
+    csv = display_df.to_csv(index=False, encoding="utf-8-sig")
+    st.download_button(
+        "⬇️ CSV 다운로드", data=csv,
+        file_name=f"중간검사성적서_{date_from}_{date_to}.csv",
+        mime="text/csv"
+    )
