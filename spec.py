@@ -9,6 +9,24 @@ st.set_page_config(
     initial_sidebar_state="collapsed"
 )
 
+# ── 계정 정의 (secrets 우선, 없으면 기본값) ──────────────────────
+ACCOUNTS = {
+    st.secrets.get("ADMIN_ID", "admin"): {
+        "password": st.secrets.get("ADMIN_PW", "admin1234"),
+        "role": "admin",          # 중간검사성적서 + 부적합관리 모두 접근
+    },
+    st.secrets.get("USER_ID", "user"): {
+        "password": st.secrets.get("USER_PW", "user1234"),
+        "role": "user",           # 중간검사성적서만 접근
+    },
+}
+
+# ── 로그인 세션 초기화 ────────────────────────────────────────────
+if "login_role" not in st.session_state:
+    st.session_state.login_role = None   # None | "user" | "admin"
+if "show_login_modal" not in st.session_state:
+    st.session_state.show_login_modal = False
+
 try:
     BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 except NameError:
@@ -29,6 +47,20 @@ BG_B64 = "/9j/4AAQSkZJRgABAQAAAQABAAD/4gHYSUNDX1BST0ZJTEUAAQEAAAHIAAAAAAQwAABtbn
 
 if "page" not in st.session_state:
     st.session_state.page = "home"
+
+# ── 로그인 처리 함수 ──────────────────────────────────────────────
+def try_login(uid, pw):
+    account = ACCOUNTS.get(uid.strip())
+    if account and pw == account["password"]:
+        st.session_state.login_role = account["role"]
+        st.session_state.show_login_modal = False
+        return True
+    return False
+
+def do_logout():
+    st.session_state.login_role = None
+    st.session_state.page = "home"
+    st.rerun()
 
 # ── 전역 CSS: 레이아웃·폰트만 (사이드바 숨김은 홈에서만) ──
 st.markdown("""
@@ -97,6 +129,9 @@ div[data-testid="stButton"] > button[kind="primary"]:hover {
 
 
 def show_home():
+    role = st.session_state.login_role  # None | "user" | "admin"
+    show_coil = (role in ("user", "admin"))
+
     # 홈 페이지에서만 사이드바 숨김
     st.markdown("""
 <style>
@@ -131,6 +166,19 @@ def show_home():
     position: relative;
     overflow: hidden;
 }}
+.hj-card-locked {{
+    background: #f8f9fa;
+    border-radius: 14px;
+    border: 1.5px solid #e8eaed;
+    box-shadow: none;
+    padding: 22px 22px 22px 22px;
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    position: relative;
+    overflow: hidden;
+    opacity: 0.65;
+}}
 .hj-card-badge {{
     background: #FFF3E0; color: #E65100;
     font-size: 10px; font-weight: 800;
@@ -140,6 +188,7 @@ def show_home():
 .hj-card-icon {{ font-size: 1.9rem; margin-bottom: 9px; }}
 .hj-card-title {{ font-size: 1.05rem; font-weight: 800; color: #1a1a2e; margin-bottom: 5px; }}
 .hj-card-desc {{ font-size: 0.78rem; color: #6b7280; line-height: 1.6; margin: 0; }}
+.hj-lock-icon {{ font-size:1.1rem; position:absolute; top:14px; right:16px; opacity:0.5; }}
 
 /* ── 버튼 행: 카드 바로 아래 딱 붙이기 ── */
 [data-testid="stHorizontalBlock"] {{
@@ -235,15 +284,77 @@ def show_home():
     <div style="font-size:clamp(10px,2.5vw,12px);color:rgba(255,255,255,0.5);">아래에서 사용할 앱을 선택하세요</div>
   </div>
 </div>
+""", unsafe_allow_html=True)
 
-<!-- ── 카드 ── -->
-<div class="hj-grid">
+    # ── 로그인 상태 표시 + 로그아웃 버튼 ─────────────────────────
+    role_label = {"user": "👤 일반 사용자", "admin": "🔓 관리자"}.get(role, "")
+    if role:
+        lc1, lc2 = st.columns([6, 1])
+        lc1.markdown(
+            f"<div style='padding:8px 36px;font-size:12px;color:#6b7280;'>"
+            f"<b style='color:#FF8C00;'>{role_label}</b> 로 로그인됨</div>",
+            unsafe_allow_html=True
+        )
+        if lc2.button("로그아웃", key="home_logout"):
+            do_logout()
+    else:
+        lc1, lc2 = st.columns([6, 1])
+        lc1.markdown(
+            "<div style='padding:8px 36px;font-size:12px;color:#9ca3af;'>로그인하면 더 많은 기능을 사용할 수 있습니다</div>",
+            unsafe_allow_html=True
+        )
+        if lc2.button("🔐 로그인", key="home_login_btn"):
+            st.session_state.show_login_modal = True
+            st.rerun()
+
+    # ── 로그인 폼 (show_login_modal=True 일 때) ───────────────────
+    if st.session_state.show_login_modal:
+        with st.container():
+            st.markdown("""
+<div style="background:#fff;border:1.5px solid #e8eaed;border-radius:14px;
+     padding:20px 24px;margin:0 36px 16px 36px;max-width:400px;
+     box-shadow:0 4px 16px rgba(0,0,0,0.10);">
+  <div style="font-weight:800;font-size:1rem;color:#1a1a2e;margin-bottom:14px;">🔐 로그인</div>
+</div>
+""", unsafe_allow_html=True)
+            with st.form("login_form", clear_on_submit=True):
+                uid = st.text_input("아이디", placeholder="아이디 입력", key="login_uid")
+                pw  = st.text_input("비밀번호", type="password", placeholder="비밀번호 입력", key="login_pw")
+                sb1, sb2 = st.columns([1, 4])
+                submitted = sb1.form_submit_button("로그인", type="primary", use_container_width=True)
+                cancelled = sb2.form_submit_button("취소", use_container_width=True)
+                if submitted:
+                    if try_login(uid, pw):
+                        st.success("로그인 성공!")
+                        st.rerun()
+                    else:
+                        st.error("아이디 또는 비밀번호가 올바르지 않습니다.")
+                if cancelled:
+                    st.session_state.show_login_modal = False
+                    st.rerun()
+
+    # ── 카드 그리드 ───────────────────────────────────────────────
+    if show_coil:
+        coil_card = """
   <div class="hj-card">
     <div class="hj-card-badge">INSPECTION</div>
     <div class="hj-card-icon">📐</div>
     <div class="hj-card-title">중간검사성적서</div>
     <div class="hj-card-desc">재단일별 코일 실두께 측정 데이터<br>조회 및 현황 파악</div>
-  </div>
+  </div>"""
+    else:
+        coil_card = """
+  <div class="hj-card-locked">
+    <div class="hj-lock-icon">🔒</div>
+    <div class="hj-card-badge">INSPECTION</div>
+    <div class="hj-card-icon">📐</div>
+    <div class="hj-card-title">중간검사성적서</div>
+    <div class="hj-card-desc">로그인 후 이용 가능합니다</div>
+  </div>"""
+
+    st.markdown(f"""
+<div class="hj-grid">
+  {coil_card}
   <div class="hj-card">
     <div class="hj-card-badge">QUALITY</div>
     <div class="hj-card-icon">📋</div>
@@ -255,8 +366,10 @@ def show_home():
 
     col1, col2 = st.columns(2)
     with col1:
-        if st.button("📐 중간검사성적서 들어가기", key="btn_coil",
-                     use_container_width=True, type="primary"):
+        coil_btn_label = "📐 중간검사성적서 들어가기" if show_coil else "🔒 로그인 후 이용 가능"
+        if st.button(coil_btn_label, key="btn_coil",
+                     use_container_width=True, type="primary",
+                     disabled=not show_coil):
             st.session_state.page = "coil"
             st.rerun()
     with col2:
@@ -295,4 +408,5 @@ elif st.session_state.page == "cutting":
 </style>
 """, unsafe_allow_html=True)
     import app_cutting
-    app_cutting.run()
+    # 전역 로그인 역할을 cutting 모듈에 전달
+    app_cutting.run(login_role=st.session_state.login_role)
