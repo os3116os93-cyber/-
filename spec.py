@@ -1,412 +1,330 @@
+"""
+app_coil.py — 중간검사성적서 (코일 실두께 데이터 뷰어)
+구글 시트 통합뷰에서 직접 읽어 표시
+"""
 import streamlit as st
-import os
-import base64
+import pandas as pd
+import gspread
+from google.oauth2.service_account import Credentials
+from collections import Counter
+from datetime import date
 
-st.set_page_config(
-    page_title="한진철관 품질기술팀",
-    page_icon="🏭",
-    layout="wide",
-    initial_sidebar_state="collapsed"
-)
+SCOPES = [
+    "https://www.googleapis.com/auth/spreadsheets",
+    "https://www.googleapis.com/auth/drive",
+]
+SPREADSHEET_ID = st.secrets.get("SHEET_ID", "")
+SHEET_MERGED   = "통합뷰"
+TEXT_COLS      = {"재단일", "제강사", "강종", "재질"}
 
-# ── 계정 정의 (secrets 우선, 없으면 기본값) ──────────────────────
-ACCOUNTS = {
-    st.secrets.get("ADMIN_ID", "admin"): {
-        "password": st.secrets.get("ADMIN_PW", "admin1234"),
-        "role": "admin",          # 중간검사성적서 + 부적합관리 모두 접근
-    },
-    st.secrets.get("USER_ID", "user"): {
-        "password": st.secrets.get("USER_PW", "user1234"),
-        "role": "user",           # 중간검사성적서만 접근
-    },
+# 9칸 측정값 → 3칸 평균으로 통합
+MEASURE_GROUPS = {
+    "L 평균": ["S(L)_1", "S(L)_2", "S(L)_3"],
+    "C 평균": ["C_1",    "C_2",    "C_3"],
+    "R 평균": ["S(R)_1", "S(R)_2", "S(R)_3"],
 }
 
-# ── 로그인 세션 초기화 ────────────────────────────────────────────
-if "login_role" not in st.session_state:
-    st.session_state.login_role = None   # None | "user" | "admin"
-if "show_login_modal" not in st.session_state:
-    st.session_state.show_login_modal = False
+# 최종 표시 컬럼 순서 (재단일 다음에 제강사 추가)
+DISPLAY_COLS = [
+    "재단일", "제강사", "강종", "재질", "두께", "폭", "중량",
+    "전산두께", "L 평균", "C 평균", "R 평균",
+    "실두께평균", "최소실두께", "최대실두께", "차이",
+]
 
-try:
-    BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-except NameError:
-    BASE_DIR = os.getcwd()
 
-def _img_b64(path):
-    if not os.path.exists(path):
+@st.cache_resource(ttl=300)
+def get_gsheet_client():
+    try:
+        creds = Credentials.from_service_account_info(
+            st.secrets["gcp_service_account"], scopes=SCOPES)
+        return gspread.authorize(creds)
+    except Exception as e:
+        st.error(f"구글 시트 연결 실패: {e}")
         return None
-    with open(path, "rb") as f:
-        return base64.b64encode(f.read()).decode()
-
-logo_b64 = _img_b64(os.path.join(BASE_DIR, "hanjin_logo.png"))
-logo_tag = (
-    f'<img src="data:image/png;base64,{logo_b64}" style="height:40px;width:auto;max-width:160px;object-fit:contain;display:block;">'
-    if logo_b64 else '<span style="font-size:18px;font-weight:900;color:#FF8C00;">한진철관</span>'
-)
-BG_B64 = "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"
-
-if "page" not in st.session_state:
-    st.session_state.page = "home"
-
-# ── 로그인 처리 함수 ──────────────────────────────────────────────
-def try_login(uid, pw):
-    account = ACCOUNTS.get(uid.strip())
-    if account and pw == account["password"]:
-        st.session_state.login_role = account["role"]
-        st.session_state.show_login_modal = False
-        return True
-    return False
-
-def do_logout():
-    st.session_state.login_role = None
-    st.session_state.page = "home"
-    st.rerun()
-
-# ── 전역 CSS: 레이아웃·폰트만 (사이드바 숨김은 홈에서만) ──
-st.markdown("""
-<style>
-@import url('https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;600;700;800;900&display=swap');
-* { font-family: 'Noto Sans KR', sans-serif !important; box-sizing: border-box; }
-
-/* ── Streamlit 상단 여백 완전 제거 ── */
-.stApp > header { display: none !important; height: 0 !important; }
-#stDecoration   { display: none !important; }
-.stApp          { overflow-x: hidden; }
-[data-testid="stAppViewContainer"] {
-    padding-top: 0 !important;
-    margin-top:  0 !important;
-}
-[data-testid="stAppViewContainer"] > .main {
-    padding-top: 0 !important;
-    background: #f0f2f6;
-}
-.block-container {
-    padding: 0 !important;
-    max-width: 100% !important;
-}
-[data-testid="stVerticalBlock"] > div:first-child > div:first-child {
-    margin-top: 0 !important;
-    padding-top: 0 !important;
-}
-
-/* ── 들어가기 버튼 스타일 ── */
-div[data-testid="stButton"] > button[kind="primary"] {
-    background: linear-gradient(135deg, #FF8C00 0%, #E65100 100%) !important;
-    color: white !important;
-    border: none !important;
-    border-radius: 0 0 14px 14px !important;
-    font-weight: 700 !important;
-    font-size: 14px !important;
-    height: 44px !important;
-    transition: opacity .15s !important;
-    box-shadow: 0 3px 10px rgba(255,140,0,0.28) !important;
-    margin-top: 0 !important;
-}
-div[data-testid="stButton"] > button[kind="primary"]:hover {
-    opacity: 0.85 !important;
-}
-
-/* 홈 버튼 바 */
-.home-bar {
-    background: #fff;
-    border-bottom: 1px solid #e8eaed;
-    padding: 8px 20px;
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    flex-wrap: nowrap;
-    overflow: visible;
-}
-.home-bar img {
-    height: 36px;
-    width: auto;
-    max-width: 140px;
-    object-fit: contain;
-    flex-shrink: 0;
-}
-</style>
-""", unsafe_allow_html=True)
 
 
-def show_home():
-    role = st.session_state.login_role  # None | "user" | "admin"
-    show_coil = (role in ("user", "admin"))
+def _ws_to_df(ws):
+    """워크시트 → DataFrame. 중복 헤더 자동 _1/_2/_3 처리."""
+    all_values = ws.get_all_values()
+    if not all_values or len(all_values) < 2:
+        return pd.DataFrame()
+    raw = [h.strip() for h in all_values[0]]
+    cnt = Counter(raw)
+    seen = {}
+    headers = []
+    for h in raw:
+        if cnt[h] > 1:
+            seen[h] = seen.get(h, 0) + 1
+            headers.append(f"{h}_{seen[h]}")
+        else:
+            headers.append(h)
+    df = pd.DataFrame(all_values[1:], columns=headers)
+    df = df[df.iloc[:, 0].str.strip() != ""].copy()
+    return df
 
-    # 홈 페이지에서만 사이드바 숨김
+
+@st.cache_data(ttl=300)
+def load_data():
+    client = get_gsheet_client()
+    if not client:
+        return pd.DataFrame()
+    try:
+        sh = client.open_by_key(SPREADSHEET_ID)
+        ws = sh.worksheet(SHEET_MERGED)
+        df = _ws_to_df(ws)
+        if df.empty:
+            return df
+        # 날짜 파싱
+        df["재단일"] = pd.to_datetime(df["재단일"], errors="coerce")
+        df = df[df["재단일"].notna()].copy()
+        # 숫자 변환
+        for c in df.columns:
+            if c not in TEXT_COLS and c != "재단일":
+                df[c] = pd.to_numeric(df[c], errors="coerce")
+        # 측정값 평균 계산 (L/C/R)
+        for avg_col, src_cols in MEASURE_GROUPS.items():
+            exist = [c for c in src_cols if c in df.columns]
+            df[avg_col] = df[exist].mean(axis=1).round(2) if exist else None
+
+        # 실두께 통계: 9개 측정값 전체 기반
+        all_measure_cols = (
+            MEASURE_GROUPS["L 평균"] +
+            MEASURE_GROUPS["C 평균"] +
+            MEASURE_GROUPS["R 평균"]
+        )
+        exist_all = [c for c in all_measure_cols if c in df.columns]
+        if exist_all:
+            df["실두께평균"] = df[exist_all].mean(axis=1).round(3)
+            df["최소실두께"] = df[exist_all].min(axis=1).round(3)
+            df["최대실두께"] = df[exist_all].max(axis=1).round(3)
+            df["차이"] = (df["최대실두께"] - df["최소실두께"]).round(3)
+        else:
+            for col in ["실두께평균", "최소실두께", "최대실두께", "차이"]:
+                df[col] = None
+        # [확인용 코드 추가] 
+        # 화면에 실제 시트에서 읽어온 컬럼명들을 리스트로 보여줍니다.
+        # st.write("실제 인식된 컬럼명:", df.columns.tolist()) 
+
+        return df
+    except Exception as e:
+        st.error(f"데이터 로드 실패: {e}")
+        return pd.DataFrame()
+
+
+def run():
     st.markdown("""
 <style>
-[data-testid="stSidebar"] { display: none !important; }
+.coil-title { font-size:1.4rem; font-weight:800; color:#1a1a2e; margin-bottom:2px; }
+.coil-sub   { font-size:13px; color:#6b7280; margin-bottom:14px; }
+.filter-wrap {
+    background:#fff; border:1.5px solid #e8eaed; border-radius:12px;
+    padding:14px 18px 12px 18px; margin-bottom:14px;
+    box-shadow:0 1px 4px rgba(0,0,0,0.05);
+}
+.filter-label { font-size:12px; font-weight:700; color:#374151; margin-bottom:8px; }
+/* 좌우 여백 */
+.block-container { padding-left:2rem !important; padding-right:2rem !important; }
 </style>
 """, unsafe_allow_html=True)
 
-    st.markdown(f"""
-<style>
-.hj-wrap {{ background: #f0f2f6; }}
+    st.markdown('<div class="coil-title">📐 중간검사성적서</div>', unsafe_allow_html=True)
+    st.markdown('<div class="coil-sub">코일 실두께 측정 데이터 조회</div>', unsafe_allow_html=True)
 
-/* ── 카드 그리드 ── */
-.hj-grid {{
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 0;
-    padding: 24px 36px 0 36px;
-    box-sizing: border-box;
-    max-width: 860px;
-    column-gap: 18px;
-}}
-.hj-card {{
-    background: #fff;
-    border-radius: 14px 14px 0 0;
-    border: 1.5px solid #e8eaed;
-    border-bottom: none;
-    box-shadow: 0 2px 8px rgba(0,0,0,0.06);
-    padding: 22px 22px 18px 22px;
-    display: flex;
-    flex-direction: column;
-    align-items: flex-start;
-    position: relative;
-    overflow: hidden;
-}}
-.hj-card-locked {{
-    background: #f8f9fa;
-    border-radius: 14px;
-    border: 1.5px solid #e8eaed;
-    box-shadow: none;
-    padding: 22px 22px 22px 22px;
-    display: flex;
-    flex-direction: column;
-    align-items: flex-start;
-    position: relative;
-    overflow: hidden;
-    opacity: 0.65;
-}}
-.hj-card-badge {{
-    background: #FFF3E0; color: #E65100;
-    font-size: 10px; font-weight: 800;
-    padding: 3px 10px; border-radius: 20px;
-    letter-spacing: 0.06em; margin-bottom: 12px;
-}}
-.hj-card-icon {{ font-size: 1.9rem; margin-bottom: 9px; }}
-.hj-card-title {{ font-size: 1.05rem; font-weight: 800; color: #1a1a2e; margin-bottom: 5px; }}
-.hj-card-desc {{ font-size: 0.78rem; color: #6b7280; line-height: 1.6; margin: 0; }}
-.hj-lock-icon {{ font-size:1.1rem; position:absolute; top:14px; right:16px; opacity:0.5; }}
-
-/* ── 버튼 행: 카드 바로 아래 딱 붙이기 ── */
-[data-testid="stHorizontalBlock"] {{
-    gap: 18px !important;
-    padding: 0 36px 32px 36px !important;
-    max-width: 860px !important;
-    margin-top: -1px !important;
-}}
-[data-testid="stHorizontalBlock"] > div {{
-    padding: 0 !important;
-    min-width: 0 !important;
-}}
-[data-testid="stHorizontalBlock"] button[kind="primary"] {{
-    border-radius: 0 0 14px 14px !important;
-    margin-top: 0 !important;
-    border-top: 1px solid #e8eaed !important;
-}}
-
-/* ── 모바일 ── */
-@media(max-width: 640px) {{
-    .hj-grid {{
-        grid-template-columns: 1fr;
-        padding: 16px 16px 0 16px;
-        max-width: 100%;
-        column-gap: 0;
-        row-gap: 0;
-    }}
-    .hj-card {{ margin-bottom: 0; }}
-    [data-testid="stHorizontalBlock"] {{
-        flex-direction: column !important;
-        padding: 0 16px 24px 16px !important;
-        gap: 0 !important;
-        max-width: 100% !important;
-    }}
-    [data-testid="stHorizontalBlock"] > div {{
-        width: 100% !important;
-    }}
-    [data-testid="stHorizontalBlock"] button[kind="primary"] {{
-        border-radius: 0 0 14px 14px !important;
-        margin-bottom: 16px !important;
-    }}
-}}
-</style>
-
-<!-- ── 배너 ── -->
-<div style="
-    position: relative;
-    width: 100%;
-    min-height: 220px;
-    overflow: hidden;
-    background: #0d0d0d;
-    display: flex;
-    flex-direction: column;
-    justify-content: space-between;
-    padding: 40px 24px 24px 24px;
-    box-sizing: border-box;
-    margin: 0;
-    line-height: 1;
-">
-  <div style="position:absolute;inset:0;
-    background-image:url('data:image/jpeg;base64,{BG_B64}');
-    background-size:cover;background-position:center 30%;
-    opacity:0.32;filter:grayscale(15%);"></div>
-  <div style="position:absolute;inset:0;
-    background:linear-gradient(140deg,rgba(10,10,10,0.92) 0%,rgba(20,20,20,0.68) 55%,rgba(255,140,0,0.10) 100%);
-  "></div>
-
-  <!-- 상단 로고 + 배지 -->
-  <div style="position:relative;z-index:2;display:flex;justify-content:space-between;align-items:center;flex-wrap:nowrap;gap:8px;">
-    <div style="flex-shrink:0;">{logo_tag}</div>
-    <div style="
-      background:rgba(255,140,0,0.2);
-      border:1px solid rgba(255,140,0,0.5);
-      color:#FFB347;
-      font-size:clamp(9px,2.5vw,11px);
-      font-weight:700;
-      padding:4px 10px;
-      border-radius:20px;
-      letter-spacing:0.06em;
-      white-space:nowrap;
-      flex-shrink:0;
-    ">품질기술팀</div>
-  </div>
-
-  <!-- 하단 텍스트 -->
-  <div style="position:relative;z-index:2;margin-top:14px;">
-    <div style="font-size:clamp(8px,2vw,10px);font-weight:700;color:#FF8C00;letter-spacing:0.2em;
-      text-transform:uppercase;margin-bottom:6px;">Quality Management System</div>
-    <div style="font-size:clamp(1.2rem,3.5vw,2rem);font-weight:900;color:#fff;
-      line-height:1.25;margin-bottom:6px;letter-spacing:-0.02em;word-break:keep-all;">
-      품질 통합 <span style="color:#FF8C00;">관리 시스템</span>
-    </div>
-    <div style="font-size:clamp(10px,2.5vw,12px);color:rgba(255,255,255,0.5);">아래에서 사용할 앱을 선택하세요</div>
-  </div>
-</div>
-""", unsafe_allow_html=True)
-
-    # ── 로그인 상태 표시 + 로그아웃 버튼 ─────────────────────────
-    role_label = {"user": "👤 일반 사용자", "admin": "🔓 관리자"}.get(role, "")
-    if role:
-        lc1, lc2 = st.columns([6, 1])
-        lc1.markdown(
-            f"<div style='padding:8px 36px;font-size:12px;color:#6b7280;'>"
-            f"<b style='color:#FF8C00;'>{role_label}</b> 로 로그인됨</div>",
-            unsafe_allow_html=True
-        )
-        if lc2.button("로그아웃", key="home_logout"):
-            do_logout()
-    else:
-        lc1, lc2 = st.columns([6, 1])
-        lc1.markdown(
-            "<div style='padding:8px 36px;font-size:12px;color:#9ca3af;'>로그인하면 더 많은 기능을 사용할 수 있습니다</div>",
-            unsafe_allow_html=True
-        )
-        if lc2.button("🔐 로그인", key="home_login_btn"):
-            st.session_state.show_login_modal = True
-            st.rerun()
-
-    # ── 로그인 폼 (show_login_modal=True 일 때) ───────────────────
-    if st.session_state.show_login_modal:
-        with st.container():
-            st.markdown("""
-<div style="background:#fff;border:1.5px solid #e8eaed;border-radius:14px;
-     padding:20px 24px;margin:0 36px 16px 36px;max-width:400px;
-     box-shadow:0 4px 16px rgba(0,0,0,0.10);">
-  <div style="font-weight:800;font-size:1rem;color:#1a1a2e;margin-bottom:14px;">🔐 로그인</div>
-</div>
-""", unsafe_allow_html=True)
-            with st.form("login_form", clear_on_submit=True):
-                uid = st.text_input("아이디", placeholder="아이디 입력", key="login_uid")
-                pw  = st.text_input("비밀번호", type="password", placeholder="비밀번호 입력", key="login_pw")
-                sb1, sb2 = st.columns([1, 4])
-                submitted = sb1.form_submit_button("로그인", type="primary", use_container_width=True)
-                cancelled = sb2.form_submit_button("취소", use_container_width=True)
-                if submitted:
-                    if try_login(uid, pw):
-                        st.success("로그인 성공!")
-                        st.rerun()
-                    else:
-                        st.error("아이디 또는 비밀번호가 올바르지 않습니다.")
-                if cancelled:
-                    st.session_state.show_login_modal = False
-                    st.rerun()
-
-    # ── 카드 그리드 ───────────────────────────────────────────────
-    if show_coil:
-        coil_card = """
-  <div class="hj-card">
-    <div class="hj-card-badge">INSPECTION</div>
-    <div class="hj-card-icon">📐</div>
-    <div class="hj-card-title">중간검사성적서</div>
-    <div class="hj-card-desc">재단일별 코일 실두께 측정 데이터<br>조회 및 현황 파악</div>
-  </div>"""
-    else:
-        coil_card = """
-  <div class="hj-card-locked">
-    <div class="hj-lock-icon">🔒</div>
-    <div class="hj-card-badge">INSPECTION</div>
-    <div class="hj-card-icon">📐</div>
-    <div class="hj-card-title">중간검사성적서</div>
-    <div class="hj-card-desc">로그인 후 이용 가능합니다</div>
-  </div>"""
-
-    st.markdown(f"""
-<div class="hj-grid">
-  {coil_card}
-  <div class="hj-card">
-    <div class="hj-card-badge">QUALITY</div>
-    <div class="hj-card-icon">📋</div>
-    <div class="hj-card-title">품질통합관리</div>
-    <div class="hj-card-desc">고객 사양서 · 품질 보증 기준<br>부적합 관리 대장</div>
-  </div>
-</div>
-""", unsafe_allow_html=True)
-
-    col1, col2 = st.columns(2)
-    with col1:
-        coil_btn_label = "📐 중간검사성적서 들어가기" if show_coil else "🔒 로그인 후 이용 가능"
-        if st.button(coil_btn_label, key="btn_coil",
-                     use_container_width=True, type="primary",
-                     disabled=not show_coil):
-            st.session_state.page = "coil"
-            st.rerun()
-    with col2:
-        if st.button("📋 품질통합관리 들어가기", key="btn_cutting",
-                     use_container_width=True, type="primary"):
-            st.session_state.page = "cutting"
-            st.rerun()
-
-
-def _render_home_btn():
-    st.markdown(f"""
-<div class="home-bar">
-  {logo_tag}
-  <span style="font-size:12px;color:#d1d5db;">|</span>
-  <span style="font-size:12px;color:#6b7280;font-weight:600;white-space:nowrap;">품질기술팀</span>
-</div>
-""", unsafe_allow_html=True)
-    if st.button("← 홈으로 돌아가기", key="home_back_btn"):
-        st.session_state.page = "home"
+    if st.button("🔄 데이터 새로고침", key="coil_refresh"):
+        load_data.clear()
+        st.cache_resource.clear()
         st.rerun()
-    st.markdown("<div style='height:8px'></div>", unsafe_allow_html=True)
 
+    with st.spinner("데이터 불러오는 중..."):
+        df = load_data()
 
-if st.session_state.page == "home":
-    show_home()
-elif st.session_state.page == "coil":
-    _render_home_btn()
-    import app_coil
-    app_coil.run()
-elif st.session_state.page == "cutting":
-    # cutting 페이지: 상단배너 없음, 사이드바 강제 표시
-    st.markdown("""
+    if df.empty:
+        st.info("통합뷰 시트에 데이터가 없습니다.")
+        return
+
+    total_min = df["재단일"].min().date()
+    total_max = df["재단일"].max().date()
+
+    # ── 필터 박스 ─────────────────────────────────────────────────
+    st.markdown('<div class="filter-wrap">', unsafe_allow_html=True)
+    st.markdown('<div class="filter-label">🔍 조회 조건</div>', unsafe_allow_html=True)
+
+    # 날짜: 시작일 / 종료일
+    d1, d2 = st.columns(2)
+    with d1:
+        date_from = st.date_input(
+            "시작일", value=total_min,
+            min_value=date(2020, 1, 1), max_value=date(2099, 12, 31),
+            format="YYYY/MM/DD", key="coil_from"
+        )
+    with d2:
+        date_to = st.date_input(
+            "종료일", value=total_max,
+            min_value=date(2020, 1, 1), max_value=date(2099, 12, 31),
+            format="YYYY/MM/DD", key="coil_to"
+        )
+
+    # 제강사 / 강종 / 재질 / 두께: 4칸 필터
+    s1, s2, s3, s4 = st.columns(4)
+
+    maker_vals = sorted(df["제강사"].dropna().unique().tolist()) if "제강사" in df.columns else []
+    grade_vals = sorted(df["강종"].dropna().unique().tolist())   if "강종"   in df.columns else []
+    mat_vals   = sorted(df["재질"].dropna().unique().tolist())   if "재질"   in df.columns else []
+    thk_vals   = sorted(df["두께"].dropna().unique().tolist())   if "두께"   in df.columns else []
+
+    with s1:
+        maker_q = st.text_input("제강사", placeholder=f"예: {maker_vals[0] if maker_vals else 'ANF'}", key="coil_maker")
+    with s2:
+        grade_q = st.text_input("강종",   placeholder=f"예: {grade_vals[0] if grade_vals else 'GI'}",  key="coil_grade")
+    with s3:
+        mat_q   = st.text_input("재질",   placeholder=f"예: {mat_vals[0] if mat_vals else 'SGC'}", key="coil_mat")
+    with s4:
+        thk_q   = st.text_input("두께",   placeholder=f"예: {thk_vals[0] if thk_vals else '1.20'}", key="coil_thk")
+
+    # 입력 중 후보 미리보기
+    if maker_q:
+        hits = [v for v in maker_vals if maker_q.lower() in v.lower()]
+        if hits:
+            st.caption("제강사 후보: " + " / ".join(hits[:8]))
+    if grade_q:
+        gq = grade_q.upper().strip()
+        exact    = [v for v in grade_vals if v.upper() == gq]
+        starts   = [v for v in grade_vals if v.upper().startswith(gq) and v.upper() != gq]
+        contains = [v for v in grade_vals if gq in v.upper() and not v.upper().startswith(gq)]
+        hits = exact + starts + contains
+        if hits:
+            st.caption("강종 후보: " + " / ".join(hits[:8]))
+    if mat_q:
+        hits = [v for v in mat_vals if mat_q.lower() in v.lower()]
+        if hits:
+            st.caption("재질 후보: " + " / ".join(hits[:8]))
+    if thk_q:
+        try:
+            thk_num = float(thk_q)
+            hits = [f"{v:.2f}" for v in thk_vals if abs(float(v) - thk_num) < 0.001]
+            if hits:
+                st.caption("두께 후보: " + " / ".join(hits[:8]))
+        except ValueError:
+            st.caption("두께는 숫자로 입력해주세요. 예: 1.20")
+
+    st.markdown('</div>', unsafe_allow_html=True)
+
+    if date_from > date_to:
+        st.warning("시작일이 종료일보다 늦습니다.")
+        return
+
+    # ── 필터 적용 ─────────────────────────────────────────────────
+    mask = (
+        (df["재단일"].dt.date >= date_from) &
+        (df["재단일"].dt.date <= date_to)
+    )
+    # 제강사: 부분일치
+    if maker_q:
+        maker_hits = [v for v in maker_vals if maker_q.lower() in v.lower()]
+        if maker_hits:
+            mask &= df["제강사"].isin(maker_hits)
+        else:
+            mask &= df["제강사"].str.contains(maker_q, case=False, na=False)
+    # 강종: 완전일치 → 시작일치 → 포함일치
+    if grade_q:
+        gq = grade_q.upper().strip()
+        exact_hits    = [v for v in grade_vals if v.upper() == gq]
+        starts_hits   = [v for v in grade_vals if v.upper().startswith(gq) and v.upper() != gq]
+        contains_hits = [v for v in grade_vals if gq in v.upper() and not v.upper().startswith(gq)]
+        if exact_hits:
+            grade_hits = exact_hits
+        elif starts_hits:
+            grade_hits = starts_hits
+        else:
+            grade_hits = contains_hits
+        if grade_hits:
+            mask &= df["강종"].isin(grade_hits)
+        else:
+            mask &= df["강종"].str.upper().str.contains(gq, case=False, na=False)
+    # 재질: 부분일치
+    if mat_q:
+        mat_hits = [v for v in mat_vals if mat_q.lower() in v.lower()]
+        if mat_hits:
+            mask &= df["재질"].isin(mat_hits)
+        else:
+            mask &= df["재질"].str.contains(mat_q, case=False, na=False)
+    # 두께: 두께 열만 정확히 일치 (소수점 오차 0.001 허용)
+    if thk_q:
+        try:
+            thk_num = float(thk_q)
+            mask &= df["두께"].apply(lambda x: abs(float(x) - thk_num) < 0.001 if pd.notna(x) else False)
+        except ValueError:
+            pass
+
+    filtered = df[mask].copy()
+    filtered = filtered.sort_values("재단일", ascending=False)
+    filtered["재단일"] = filtered["재단일"].dt.strftime("%Y-%m-%d")
+
+    st.caption(f"총 **{len(filtered):,}건** | {date_from} ~ {date_to}  *(전체: {len(df):,}건)*")
+
+    # ── 요약 카드 (L/C/R 평균 통계) ──────────────────────────────
+    if not filtered.empty and all(c in filtered.columns for c in ["L 평균", "C 평균", "R 평균"]):
+        l_col = filtered["L 평균"].dropna()
+        c_col = filtered["C 평균"].dropna()
+        r_col = filtered["R 평균"].dropna()
+        clr_all = pd.concat([l_col, c_col, r_col])
+        st.markdown("""
 <style>
-[data-testid="stSidebar"] { display: flex !important; }
-[data-testid="stSidebarCollapsedControl"] { display: none !important; }
-</style>
-""", unsafe_allow_html=True)
-    import app_cutting
-    # 전역 로그인 역할을 cutting 모듈에 전달
-    app_cutting.run(login_role=st.session_state.login_role)
+.summary-wrap{display:flex;gap:12px;margin-bottom:12px;flex-wrap:wrap;}
+.summary-card{flex:1;min-width:160px;background:#f8fafc;border:1.5px solid #e2e8f0;border-radius:10px;padding:12px 16px;}
+.summary-card .label{font-size:12px;font-weight:700;color:#64748b;margin-bottom:6px;}
+.summary-card .avg{font-size:20px;font-weight:800;color:#1e293b;}
+.summary-card .minmax{font-size:11px;color:#94a3b8;margin-top:4px;}
+</style>""", unsafe_allow_html=True)
+        def _card(label, s):
+            if s.empty: return f'<div class="summary-card"><div class="label">{label}</div><div class="avg">-</div></div>'
+            return f'<div class="summary-card"><div class="label">{label}</div><div class="avg">{s.mean():.3f}</div><div class="minmax">최소 {s.min():.3f} ~ 최대 {s.max():.3f}</div></div>'
+        clr_card = f'<div class="summary-card"><div class="label">C, L, R 평균</div><div class="avg">{clr_all.mean():.3f}</div><div class="minmax">최소 {clr_all.min():.3f} ~ 최대 {clr_all.max():.3f}</div></div>'
+        st.markdown(f'<div class="summary-wrap">{_card("L 평균값", l_col)}{_card("C 평균값", c_col)}{_card("R 평균값", r_col)}{clr_card}</div>', unsafe_allow_html=True)
+
+
+    # ── 표시 컬럼 ────────────────────────────────────────────────
+    show_cols  = [c for c in DISPLAY_COLS if c in filtered.columns]
+    display_df = filtered[show_cols].copy()
+
+    # 차이값 색상
+    def color_diff(val):
+        try:
+            v = float(val)
+            if v < -0.05:  return "color:#1565C0;font-weight:600"
+            elif v > 0.05: return "color:#C62828;font-weight:600"
+        except:
+            pass
+        return ""
+
+    styled = display_df.style
+    if "차이" in display_df.columns:
+        try:
+            styled = styled.map(color_diff, subset=["차이"])
+        except AttributeError:
+            styled = styled.applymap(color_diff, subset=["차이"])
+
+    # 소수점 포맷 - 두께 소수점 2자리 표시 (반올림 없음), 폭/중량만 정수
+    fmt = {}
+    for c in display_df.columns:
+        if c in ("폭", "중량"):
+            fmt[c] = "{:.0f}"
+        elif c not in TEXT_COLS and c != "재단일":
+            fmt[c] = "{:.2f}"
+    styled = styled.format(fmt, na_rep="-")
+
+    st.dataframe(
+        styled,
+        use_container_width=True,
+        height=560,
+        hide_index=True,
+        column_config={c: st.column_config.NumberColumn(c, width="small")
+                       for c in show_cols if c not in TEXT_COLS and c != "재단일"}
+    )
+
+    csv = display_df.to_csv(index=False, encoding="utf-8-sig")
+    st.download_button(
+        "⬇️ CSV 다운로드", data=csv,
+        file_name=f"중간검사성적서_{date_from}_{date_to}.csv",
+        mime="text/csv"
+    )
