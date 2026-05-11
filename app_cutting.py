@@ -69,7 +69,6 @@ def load_nc_data():
         if not all_vals or len(all_vals) < 2:
             return pd.DataFrame(columns=NC_COLS)
         first_row = all_vals[0]
-        # 첫 셀이 순수 숫자(NO값)면 헤더 없음
         if str(first_row[0]).strip().isdigit():
             data_rows = all_vals
         else:
@@ -77,12 +76,9 @@ def load_nc_data():
         n = len(NC_COLS)
         normalized = [r[:n] + [""] * max(0, n - len(r)) for r in data_rows]
         df = pd.DataFrame(normalized, columns=NC_COLS)
-        # NO가 숫자가 아닌 행 제거
         df = df[df["NO"].astype(str).str.strip().str.match(r"^\d+$", na=False)].copy()
         df["NO"] = df["NO"].astype(str).str.strip().astype(int)
-        # NO 중복 제거 (첫 번째만 유지) - 카운트 중복 원인 차단
         df = df.drop_duplicates(subset=["NO"], keep="first")
-        # 숫자 컬럼: 쉼표/공백 제거 후 float 변환
         for col in NC_NUM_COLS:
             df[col] = df[col].astype(str).str.replace(",", "", regex=False).str.strip()
             df[col] = pd.to_numeric(df[col], errors="coerce")
@@ -93,14 +89,12 @@ def load_nc_data():
 
 
 def save_nc_data(df):
-    """전체를 문자열로 변환해서 Sheet2에 저장 - 데이터 유실 방지"""
     try:
         sh = get_gsheet(1)
         save_df = df.copy()
         for col in save_df.columns:
             save_df[col] = save_df[col].fillna("")
             save_df[col] = save_df[col].astype(str).str.strip()
-            # nan/NaT 문자열 → 빈 문자열
             save_df[col] = save_df[col].where(
                 ~save_df[col].isin(["nan", "NaT", "<NA>", "None"]), ""
             )
@@ -115,16 +109,12 @@ def save_nc_data(df):
 
 
 def nc_df_set_row(df, iloc_idx, updated_dict):
-    """수정 폼 저장: iloc 기반으로 타입 충돌 없이 행 업데이트"""
-    # 새 DataFrame으로 재구성 (타입 충돌 원천 차단)
     new_df = df.copy()
     for col in new_df.columns:
         s = new_df[col].astype(str)
         new_df[col] = s.where(~s.isin(["nan", "NaT", "<NA>", "None"]), "")
-    # iloc 기반으로 값 설정 (label 인덱스 불일치 방지)
     for col, val in updated_dict.items():
         new_df.iloc[iloc_idx, new_df.columns.get_loc(col)] = str(val) if val is not None else ""
-    # 타입 복원
     new_df["NO"] = pd.to_numeric(new_df["NO"], errors="coerce").fillna(0).astype(int)
     for col in NC_NUM_COLS:
         new_df[col] = pd.to_numeric(new_df[col], errors="coerce")
@@ -168,7 +158,6 @@ def normalize_search(text):
 
 def nc_search_match(row, query):
     q = normalize_search(query)
-    # 접수일 기준 연도 검색, 생산일/출고일은 제외
     targets = ["고객사", "이슈유형", "제품규격", "생산라인",
                "이슈상세", "원인", "조치대책", "접수일"]
     return any(q in normalize_search(str(row[c])) for c in targets)
@@ -215,24 +204,23 @@ def build_standard_table():
             "</table></div>")
 
 
-logo_base64 = None  # run() 호출 시 초기화
+logo_base64 = None
 
 
 def run():
     global logo_base64
-    # session_state 초기화
     for k, v in {"is_admin": False, "edit_idx": None, "show_add_form": False,
                  "nc_edit_idx": None, "nc_show_add": False, "nc_sel_idx": None,
-                 "show_login_form": False, "_pw_enter": ""}.items():
+                 "show_login_form": False, "_pw_enter": "",
+                 "selected_customer_idx": None}.items():  # ← 고객사 선택 상태 추가
         if k not in st.session_state:
             st.session_state[k] = v
 
     logo_base64 = get_image_base64(os.path.join(BASE_DIR, "hanjin_logo.png"))
 
-    # 사이드바 복원 + 본문 여백 설정
+    # 사이드바: 홈버튼 + 관리자 로그인만 (고객사 목록 제거)
     st.markdown("""
 <style>
-/* 사이드바 강제 복원 */
 html body section[data-testid="stSidebar"],
 html body [data-testid="stSidebar"],
 section[data-testid="stSidebar"] {
@@ -241,12 +229,10 @@ section[data-testid="stSidebar"] {
     opacity: 1 !important;
     width: auto !important;
 }
-/* 사이드바 접기/펼치기 화살표 아이콘 깨짐 방지 */
 [data-testid="stSidebarCollapsedControl"] { display: none !important; }
 button[data-testid="baseButton-headerNoPadding"] svg { display: none !important; }
 section[data-testid="stSidebarContent"] { padding-top: 1rem; }
 
-/* 본문 와이드뷰: 사이드바 제외 메인 영역을 넓게 */
 .block-container {
     padding-left: 2.5rem !important;
     padding-right: 2.5rem !important;
@@ -261,10 +247,23 @@ section[data-testid="stSidebarContent"] { padding-top: 1rem; }
     padding-top: 0.5rem !important;
   }
 }
+
+/* ── 고객사 그리드 버튼 스타일 ── */
+.cust-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+    gap: 12px;
+    margin: 16px 0 24px 0;
+}
+@media(max-width: 600px) {
+    .cust-grid {
+        grid-template-columns: repeat(auto-fill, minmax(110px, 1fr));
+        gap: 8px;
+    }
+}
 </style>
 """, unsafe_allow_html=True)
 
-    # ── CSS ──────────────────────────────────────────────────────────
     st.markdown("""
 <style>
 .header-wrapper{display:flex;justify-content:space-between;align-items:flex-end;width:100%;padding:10px 0;border-bottom:1px solid #f0f2f6;margin-bottom:20px;}
@@ -289,9 +288,7 @@ section[data-testid="stSidebarContent"] { padding-top: 1rem; }
 .nc-detail-value{flex:1;padding:9px 12px;background:white;font-size:13px;line-height:1.6;color:#212529;word-break:break-all;white-space:pre-wrap;}
 .nc-loss{color:#E63946;font-weight:bold;}
 .footer-note{font-size:12.5px;color:#666;margin-top:15px;font-weight:500;}
-.guide-text{display:none;}
 @media(max-width:768px){
-  .guide-text{display:block;font-size:15px;font-weight:bold;color:#333;margin:15px 0;padding:15px;background:#fff4e6;border-radius:8px;border-left:5px solid #FF8C00;line-height:1.4;}
   .nc-detail-label{width:75px;min-width:75px;font-size:10px;}
 }
 </style>
@@ -313,11 +310,8 @@ def render_header():
 
 
 def render_admin_login():
-    """사이드바 관리자 로그인"""
     st.sidebar.markdown("---")
     if not st.session_state.is_admin:
-        # expander는 st.sidebar.expander로 생성하되,
-        # 내부 위젯은 st.xxx (sidebar 접두사 없이) — Streamlit 컨텍스트 규칙
         with st.sidebar.expander("🔐 관리자 로그인", expanded=False):
             pw = st.text_input(
                 "비밀번호", type="password", key="admin_pw_input",
@@ -330,7 +324,6 @@ def render_admin_login():
                     st.rerun()
                 else:
                     st.error("비밀번호가 틀렸습니다.")
-            # 엔터키 지원
             if pw and pw == ADMIN_PASSWORD and st.session_state.get("_pw_enter") != pw:
                 st.session_state["_pw_enter"] = pw
                 st.session_state.is_admin = True
@@ -345,6 +338,81 @@ def render_admin_login():
 
 
 # ── 탭1 렌더 ─────────────────────────────────────────────────────
+def render_customer_grid(df):
+    """고객사 목록을 반응형 그리드 버튼으로 렌더링"""
+    customer_list = df.iloc[:, 0].tolist()
+    sel = st.session_state.selected_customer_idx
+
+    if st.session_state.is_admin:
+        if st.button("➕ 고객사 추가", key="open_add_form"):
+            st.session_state.show_add_form = True
+            st.session_state.edit_idx = None
+            st.session_state.selected_customer_idx = None
+            st.rerun()
+
+    st.markdown("**업체를 선택하세요**")
+
+    # 반응형 그리드: 화면 너비에 따라 열 수 자동 조절
+    # Streamlit columns로 구현 (CSS grid 대신 — 버튼 클릭 이벤트 처리를 위해)
+    cols_per_row = 4  # 기본 PC
+    # 모바일 감지는 CSS로 처리, 여기선 4열 고정 (CSS auto-fill이 알아서 조절)
+
+    # CSS 그리드 래퍼 안에 버튼 배치
+    # Streamlit 버튼을 columns로 배치
+    for row_start in range(0, len(customer_list), cols_per_row):
+        chunk = customer_list[row_start:row_start + cols_per_row]
+        cols = st.columns(cols_per_row)
+        for j, name in enumerate(chunk):
+            idx = row_start + j
+            is_selected = (sel == idx)
+            # 선택된 버튼은 강조 스타일
+            btn_style = (
+                "background:#FF8C00;color:white;border:2px solid #E65100;"
+                if is_selected else
+                "background:white;color:#333;border:1.5px solid #DEE2E6;"
+            )
+            # CSS로 버튼 개별 스타일링
+            st.markdown(f"""
+<style>
+div[data-testid="stButton"] > button[key="cust_btn_{idx}"] {{
+    {btn_style}
+    border-radius: 10px !important;
+    font-weight: 600 !important;
+    font-size: clamp(11px, 2.5vw, 13px) !important;
+    height: 56px !important;
+    width: 100% !important;
+    white-space: normal !important;
+    word-break: keep-all !important;
+    line-height: 1.3 !important;
+    box-shadow: {'0 2px 8px rgba(255,140,0,0.3)' if is_selected else '0 1px 4px rgba(0,0,0,0.06)'} !important;
+    transition: all 0.15s !important;
+}}
+</style>
+""", unsafe_allow_html=True)
+            with cols[j]:
+                if st.button(name, key=f"cust_btn_{idx}", use_container_width=True):
+                    if is_selected:
+                        st.session_state.selected_customer_idx = None
+                    else:
+                        st.session_state.selected_customer_idx = idx
+                    st.rerun()
+        # 빈 칸 채우기 (마지막 행)
+        for j in range(len(chunk), cols_per_row):
+            cols[j].empty()
+
+    # 모바일용 CSS: 4열 → 2열
+    st.markdown("""
+<style>
+@media(max-width: 640px) {
+    [data-testid="stHorizontalBlock"] > div {
+        min-width: calc(50% - 8px) !important;
+        max-width: calc(50% - 8px) !important;
+    }
+}
+</style>
+""", unsafe_allow_html=True)
+
+
 def render_add_form(df):
     st.markdown("### ➕ 고객사 추가")
     cols = df.columns.tolist()
@@ -478,7 +546,6 @@ def render_nc_add_form(df):
         if not str(new_vals.get("고객사", "")).strip():
             st.error("고객사는 필수 입력입니다.")
         else:
-            # NC_COLS 순서대로 row 생성
             row_data = {col: new_vals.get(col, "") for col in NC_COLS}
             new_row = pd.DataFrame([row_data])
             for col in NC_NUM_COLS:
@@ -524,7 +591,6 @@ def render_nc_edit_form(df, idx):
 
     b1, b2 = st.columns([1, 5])
     if b1.button("저장", key="nc_edit_save"):
-        # iloc_idx로 타입 충돌 없이 행 업데이트
         df = nc_df_set_row(df, idx, updated)
         if save_nc_data(df):
             st.session_state.nc_edit_idx = None
@@ -537,31 +603,16 @@ def render_nc_edit_form(df, idx):
 
 # ── MAIN ─────────────────────────────────────────────────────────
 def main():
-    # ── 사이드바: 탭 컨텍스트 밖에서 모든 사이드바 위젯 렌더 ──────
+    # 사이드바: 홈버튼 + 관리자 로그인만
     if st.sidebar.button("← 홈으로 돌아가기", key="cutting_home_btn"):
         st.session_state.page = "home"
         st.rerun()
 
     render_admin_login()
 
-    # 고객사 목록은 탭 밖에서 사이드바에 렌더 (탭 안에서 st.sidebar 호출 시 오류 발생)
+    # 고객사 데이터 로드 (사이드바 라디오 제거 — 탭1 본문에서 그리드로 표시)
     df_cust = load_customer_data()
-    customer_list = df_cust.iloc[:, 0].tolist() if df_cust is not None else []
-
-    if df_cust is not None:
-        st.sidebar.header("🏢 고객사 목록")
-        if st.session_state.is_admin:
-            if st.sidebar.button("➕ 고객사 추가", key="open_add_form"):
-                st.session_state.show_add_form = True
-                st.session_state.edit_idx = None
-        sel_idx = st.sidebar.radio(
-            "업체를 선택하세요:",
-            options=list(range(len(df_cust))),
-            format_func=lambda i: customer_list[i],
-            index=None, key="customer_radio"
-        )
-    else:
-        sel_idx = None
+    sel_idx = st.session_state.selected_customer_idx  # ← 그리드 버튼 선택 결과
 
     # ── 본문 ────────────────────────────────────────────────────
     st.markdown("<div class=\"main-title\">📋 품질 통합 관리 시스템</div>", unsafe_allow_html=True)
@@ -576,46 +627,51 @@ def main():
     with tab1:
         if df_cust is None:
             st.info("고객사 데이터를 불러올 수 없습니다.")
-        elif sel_idx is None and not st.session_state.show_add_form and st.session_state.edit_idx is None:
-            st.markdown("<div class=\"guide-text\">좌상단 화살표를 눌러 고객사를 선택하십시오.</div>", unsafe_allow_html=True)
         elif st.session_state.is_admin and st.session_state.show_add_form:
             render_add_form(df_cust)
         elif st.session_state.is_admin and st.session_state.edit_idx is not None:
             render_edit_form(df_cust, st.session_state.edit_idx)
-        elif sel_idx is not None:
-            row = df_cust.iloc[sel_idx]
-            st.markdown("<div class=\"customer-title\">■ " + str(row.iloc[0]) + "</div>", unsafe_allow_html=True)
-            if st.session_state.is_admin:
-                a1, a2, _ = st.columns([1, 1, 8])
-                if a1.button("수정", key="edit_btn"):
-                    st.session_state.edit_idx = sel_idx
-                    st.session_state.show_add_form = False
-                    st.rerun()
-                if a2.button("삭제", key="delete_btn"):
-                    st.session_state["confirm_delete_" + str(sel_idx)] = True
-                if st.session_state.get("confirm_delete_" + str(sel_idx), False):
-                    st.warning("**'" + str(row.iloc[0]) + "'** 고객사를 정말 삭제하시겠습니까?")
-                    d1, d2 = st.columns([1, 5])
-                    if d1.button("확인 삭제", key="confirm_del"):
-                        updated = df_cust.drop(index=sel_idx).reset_index(drop=True)
-                        if save_customer_data(updated):
-                            st.session_state["confirm_delete_" + str(sel_idx)] = False
-                            st.success("삭제되었습니다.")
-                            st.rerun()
-                    if d2.button("취소", key="cancel_del"):
-                        st.session_state["confirm_delete_" + str(sel_idx)] = False
+        else:
+            # ── 고객사 그리드 버튼 항상 표시 ──
+            render_customer_grid(df_cust)
+
+            # ── 선택된 고객사 상세 표시 ──
+            if sel_idx is not None:
+                row = df_cust.iloc[sel_idx]
+                st.markdown("---")
+                st.markdown("<div class=\"customer-title\">■ " + str(row.iloc[0]) + "</div>", unsafe_allow_html=True)
+                if st.session_state.is_admin:
+                    a1, a2, _ = st.columns([1, 1, 8])
+                    if a1.button("수정", key="edit_btn"):
+                        st.session_state.edit_idx = sel_idx
+                        st.session_state.show_add_form = False
                         st.rerun()
-            for i in range(1, len(row.index)):
-                col_n = row.index[i]
-                raw = row.iloc[i]
-                val = str(raw).strip() if str(raw).strip() not in ("", "nan") else "-"
-                is_sp = any(k in str(col_n) for k in ["특이사항", "주의", "마킹", "포장"])
-                col_c = "#E63946" if is_sp else "#495057"
-                st.markdown(
-                    "<div class=\"notranslate\" translate=\"no\" style=\"display:flex;border:1px solid #DEE2E6;margin-bottom:-1px;\">"
-                    "<div style=\"background:#F8F9FA;width:85px;min-width:85px;padding:10px 4px;font-weight:bold;color:" + col_c + ";border-right:1px solid #DEE2E6;display:flex;align-items:center;justify-content:center;text-align:center;font-size:12px;line-height:1.2;word-break:keep-all;\">" + str(col_n) + "</div>"
-                    "<div class=\"notranslate\" translate=\"no\" style=\"flex:1;padding:10px;background:white;font-size:13.5px;line-height:1.4;color:#212529;font-weight:500;word-break:break-all;\">" + val + "</div>"
-                    "</div>", unsafe_allow_html=True)
+                    if a2.button("삭제", key="delete_btn"):
+                        st.session_state["confirm_delete_" + str(sel_idx)] = True
+                    if st.session_state.get("confirm_delete_" + str(sel_idx), False):
+                        st.warning("**'" + str(row.iloc[0]) + "'** 고객사를 정말 삭제하시겠습니까?")
+                        d1, d2 = st.columns([1, 5])
+                        if d1.button("확인 삭제", key="confirm_del"):
+                            updated = df_cust.drop(index=sel_idx).reset_index(drop=True)
+                            if save_customer_data(updated):
+                                st.session_state["confirm_delete_" + str(sel_idx)] = False
+                                st.session_state.selected_customer_idx = None
+                                st.success("삭제되었습니다.")
+                                st.rerun()
+                        if d2.button("취소", key="cancel_del"):
+                            st.session_state["confirm_delete_" + str(sel_idx)] = False
+                            st.rerun()
+                for i in range(1, len(row.index)):
+                    col_n = row.index[i]
+                    raw = row.iloc[i]
+                    val = str(raw).strip() if str(raw).strip() not in ("", "nan") else "-"
+                    is_sp = any(k in str(col_n) for k in ["특이사항", "주의", "마킹", "포장"])
+                    col_c = "#E63946" if is_sp else "#495057"
+                    st.markdown(
+                        "<div class=\"notranslate\" translate=\"no\" style=\"display:flex;border:1px solid #DEE2E6;margin-bottom:-1px;\">"
+                        "<div style=\"background:#F8F9FA;width:85px;min-width:85px;padding:10px 4px;font-weight:bold;color:" + col_c + ";border-right:1px solid #DEE2E6;display:flex;align-items:center;justify-content:center;text-align:center;font-size:12px;line-height:1.2;word-break:keep-all;\">" + str(col_n) + "</div>"
+                        "<div class=\"notranslate\" translate=\"no\" style=\"flex:1;padding:10px;background:white;font-size:13.5px;line-height:1.4;color:#212529;font-weight:500;word-break:break-all;\">" + val + "</div>"
+                        "</div>", unsafe_allow_html=True)
 
     # ── 탭2 ──────────────────────────────────────────────────────
     with tab2:
@@ -672,7 +728,6 @@ def main():
                 render_nc_edit_form(df_nc, st.session_state.nc_edit_idx)
                 st.stop()
 
-            # 검색바 + 추가버튼
             col_s, col_b = st.columns([5, 1])
             search = col_s.text_input("🔍 통합 검색",
                 placeholder="예: 백청, 조관1, 2025, 스크래치...", key="nc_search")
@@ -681,7 +736,6 @@ def main():
                 st.session_state.nc_sel_idx = None
                 st.rerun()
 
-            # 검색 필터
             df_view = df_nc.copy()
             if search:
                 df_view = df_view[df_view.apply(lambda r: nc_search_match(r, search), axis=1)]
@@ -689,7 +743,6 @@ def main():
             if df_view.empty:
                 st.info("검색 결과가 없습니다.")
             else:
-                # 통계: 건수 + 손실합계 (연도별 항목 없음)
                 valid_loss = pd.to_numeric(df_view["손실비용(원)"], errors="coerce").dropna()
                 total_loss = valid_loss.sum() if not valid_loss.empty else 0
                 c1, c2 = st.columns([1, 1])
@@ -701,7 +754,6 @@ def main():
 
                 st.markdown("---")
 
-                # 카드 목록 - 카드 전체가 클릭 영역 (position:relative + 투명 버튼 오버레이)
                 for orig_idx, row in df_view.iterrows():
                     is_sel = (st.session_state.nc_sel_idx == orig_idx)
                     loss_txt = fmt_num(row["손실비용(원)"], " 원")
@@ -711,7 +763,6 @@ def main():
 
                     card_id = "nc_card_" + str(orig_idx)
 
-                    # 카드: position:relative로 버튼 오버레이 기반 마련
                     st.markdown(
                         "<div id='" + card_id + "' style='"
                         "position:relative;"
@@ -719,8 +770,6 @@ def main():
                         "box-shadow:" + shadow + ";"
                         "border-radius:10px;padding:12px 16px 12px 16px;"
                         "margin-bottom:0px;background:white;'>"
-
-                        # 카드 내용
                         "<div style='display:flex;justify-content:space-between;align-items:flex-start;'>"
                         "<div>"
                         "<span style='font-weight:bold;font-size:14px;margin-right:6px;'>NO." + str(int(row["NO"])) + "</span>"
@@ -738,16 +787,6 @@ def main():
                         unsafe_allow_html=True
                     )
 
-                    # 투명 전체너비 버튼 → 카드 클릭처럼 동작
-                    # 버튼 자체는 카드 아래 붙어있고 use_container_width로 카드 폭과 동일
-                    # CSS로 margin-top:-1px 처리해 카드와 시각적으로 연결
-                    st.markdown(
-                        "<style>"
-                        "div[data-testid='stButton'] > button[kind='secondary']"
-                        "{margin-top:0px!important;}"
-                        "</style>",
-                        unsafe_allow_html=True
-                    )
                     btn_label = "▲ 닫기" if is_sel else "열기 ▼"
                     if st.button(btn_label, key="nc_sel_" + str(orig_idx), use_container_width=True):
                         st.session_state.nc_sel_idx = None if is_sel else orig_idx
@@ -755,7 +794,6 @@ def main():
 
                     st.markdown("<div style='margin-bottom:10px;'></div>", unsafe_allow_html=True)
 
-                    # 선택된 카드 바로 아래 상세 (PC/모바일 공통)
                     if is_sel:
                         nc_row = df_nc.iloc[orig_idx]
                         render_nc_detail(nc_row, orig_idx, df_nc)
