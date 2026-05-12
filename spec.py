@@ -30,7 +30,7 @@ BG_B64 = "/9j/4AAQSkZJRgABAQAAAQABAAD/4gHYSUNDX1BST0ZJTEUAAQEAAAHIAAAAAAQwAABtbn
 if "page" not in st.session_state:
     st.session_state.page = "home"
 
-# ───── 전역 CSS (서브페이지용 홈바만) ─────
+# ── 전역 CSS (f-string 없이 — 중괄호 충돌 없음) ──
 st.markdown("""
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;600;700;800;900&display=swap');
@@ -38,299 +38,273 @@ st.markdown("""
 .stApp > header { display: none !important; }
 #stDecoration   { display: none !important; }
 .stApp          { overflow-x: hidden; }
-[data-testid="stAppViewContainer"]          { padding-top:0!important; margin-top:0!important; }
-[data-testid="stAppViewContainer"] > .main  { padding-top:0!important; background:#f0f2f6; }
-.block-container                            { padding:0!important; max-width:100%!important; }
-[data-testid="stVerticalBlock"] > div:first-child > div:first-child { margin-top:0!important; padding-top:0!important; }
-.home-bar { background:#fff; border-bottom:1px solid #e8eaed; padding:8px 20px; display:flex; align-items:center; gap:10px; }
-</style>
-""", unsafe_allow_html=True)
+[data-testid="stAppViewContainer"]         { padding-top: 0 !important; margin-top: 0 !important; }
+[data-testid="stAppViewContainer"] > .main { padding-top: 0 !important; background: #f0f2f6; }
+.block-container                           { padding: 0 !important; max-width: 100% !important; }
+[data-testid="stVerticalBlock"] > div:first-child > div:first-child {
+    margin-top: 0 !important; padding-top: 0 !important;
+}
 
+/* ── 홈 바 ── */
+.home-bar {
+    background: #fff; border-bottom: 1px solid #e8eaed;
+    padding: 8px 20px; display: flex; align-items: center; gap: 10px;
+}
 
-def show_home():
-    st.markdown("<style>[data-testid='stSidebar']{display:none!important;}</style>", unsafe_allow_html=True)
+/* ════════════════════════════════════════
+   카드 + 버튼 레이아웃
+   핵심: st.columns 각 열 안에서 카드(HTML) + 버튼(st.button)이 쌓임
+   CSS로 버튼을 카드에 완전히 밀착
+   ════════════════════════════════════════ */
 
-    # ── 숨김 버튼 2개: JS에서 클릭 트리거 ──
-    # 이 버튼들은 화면에 보이지 않지만 Streamlit 세션 전환을 담당
-    st.markdown("""
-<style>
-/* 숨김 버튼 영역 완전 제거 */
-[data-testid="stVerticalBlock"] > div:nth-child(2) {
-    height: 0 !important;
-    overflow: hidden !important;
+/* 바깥 패딩 영역 */
+.hj-outer {
+    background: #f0f2f6;
+    padding: 20px 28px 0 28px;
+    box-sizing: border-box;
+}
+.hj-outer-bottom {
+    background: #f0f2f6;
+    padding: 0 28px 28px 28px;
+    box-sizing: border-box;
+}
+
+/* st.columns 가로 행 */
+[data-testid="stHorizontalBlock"] {
+    gap: 16px !important;
+    padding: 0 28px 28px 28px !important;
+    background: #f0f2f6 !important;
+    margin-top: 0 !important;
+    align-items: stretch !important;
+}
+[data-testid="stHorizontalBlock"] > div {
     padding: 0 !important;
     margin: 0 !important;
+    min-width: 0 !important;
+    display: flex !important;
+    flex-direction: column !important;
+}
+
+/* 카드 본문 */
+.hj-card {
+    background: #fff;
+    border: 1.5px solid #e8eaed;
+    border-bottom: none;
+    border-radius: 14px 14px 0 0;
+    padding: 18px 18px 16px 18px;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    flex: 1;
+    margin-bottom: 0;
+}
+.hj-card-dis {
+    background: #f8f9fa;
+    border: 1.5px solid #e2e5e9;
+    border-bottom: none;
+    border-radius: 14px 14px 0 0;
+    padding: 18px 18px 16px 18px;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    flex: 1;
+    margin-bottom: 0;
+    opacity: 0.72;
+}
+
+/* 배지 */
+.hj-badge     { background: #FFF3E0; color: #E65100; font-size: 10px; font-weight: 800; padding: 3px 10px; border-radius: 20px; letter-spacing: .06em; width: fit-content; }
+.hj-badge-dis { background: #f0f0f0; color: #9ca3af;  font-size: 10px; font-weight: 800; padding: 3px 10px; border-radius: 20px; letter-spacing: .06em; width: fit-content; }
+.hj-soon      { background: #f3f4f6; color: #9ca3af;  font-size: 9px;  font-weight: 800; padding: 3px 8px;  border-radius: 20px; border: 1px solid #e5e7eb; letter-spacing: .08em; width: fit-content; }
+.hj-badge-row { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }
+.hj-icon      { font-size: 1.75rem; margin: 4px 0; }
+.hj-icon-dis  { font-size: 1.75rem; margin: 4px 0; filter: grayscale(1); opacity: .35; }
+.hj-ttl       { font-size: 1rem;  font-weight: 800; color: #1a1a2e; }
+.hj-ttl-dis   { font-size: 1rem;  font-weight: 800; color: #9ca3af; }
+.hj-desc      { font-size: .76rem; color: #6b7280;  line-height: 1.6; }
+.hj-desc-dis  { font-size: .76rem; color: #b0b7c0;  line-height: 1.6; }
+
+/* st.button → 카드에 딱 붙는 활성 버튼 */
+[data-testid="stHorizontalBlock"] div[data-testid="stButton"] {
+    margin: 0 !important;
+    padding: 0 !important;
+}
+[data-testid="stHorizontalBlock"] div[data-testid="stButton"] > button {
+    background: linear-gradient(135deg, #FF8C00 0%, #E65100 100%) !important;
+    color: #fff !important;
+    border: none !important;
+    border-radius: 0 0 14px 14px !important;
+    font-weight: 700 !important;
+    font-size: 14px !important;
+    height: 46px !important;
+    width: 100% !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    box-shadow: 0 3px 10px rgba(255,140,0,.22) !important;
+    transition: opacity .15s !important;
+}
+[data-testid="stHorizontalBlock"] div[data-testid="stButton"] > button:hover { opacity: .85 !important; }
+[data-testid="stHorizontalBlock"] div[data-testid="stButton"] > button p { margin: 0 !important; padding: 0 !important; }
+
+/* 비활성 버튼 div */
+.hj-btn-dis {
+    display: flex; align-items: center; justify-content: center; gap: 6px;
+    width: 100%; height: 46px;
+    background: #e9ecef; color: #adb5bd;
+    font-size: 14px; font-weight: 700;
+    border: none; border-radius: 0 0 14px 14px;
+    cursor: not-allowed; pointer-events: none;
+    box-sizing: border-box; margin: 0;
+    opacity: 0.72;
+}
+
+/* ══ 모바일 ══ */
+@media (max-width: 720px) {
+    .hj-outer          { padding: 16px 14px 0 14px; }
+    .hj-outer-bottom   { padding: 0 14px 22px 14px; }
+    [data-testid="stHorizontalBlock"] {
+        flex-wrap: wrap !important;
+        gap: 12px !important;
+        padding: 0 14px 22px 14px !important;
+    }
+    [data-testid="stHorizontalBlock"] > div {
+        width: calc(50% - 6px) !important;
+        flex: 0 0 calc(50% - 6px) !important;
+    }
+    .hj-card, .hj-card-dis { padding: 14px 13px 12px 13px; }
+    .hj-ttl, .hj-ttl-dis   { font-size: .9rem; }
+    .hj-icon, .hj-icon-dis  { font-size: 1.4rem; }
+    [data-testid="stHorizontalBlock"] div[data-testid="stButton"] > button { height: 42px !important; font-size: 12px !important; }
+    .hj-btn-dis { height: 42px; font-size: 12px; }
+}
+@media (max-width: 400px) {
+    .hj-outer          { padding: 12px 10px 0 10px; }
+    .hj-outer-bottom   { padding: 0 10px 18px 10px; }
+    [data-testid="stHorizontalBlock"] {
+        gap: 10px !important;
+        padding: 0 10px 18px 10px !important;
+    }
+    [data-testid="stHorizontalBlock"] > div {
+        width: calc(50% - 5px) !important;
+        flex: 0 0 calc(50% - 5px) !important;
+    }
+    .hj-card, .hj-card-dis { padding: 12px 10px 10px 10px; gap: 3px; }
+    .hj-desc, .hj-desc-dis  { display: none; }
+    .hj-ttl, .hj-ttl-dis    { font-size: .82rem; }
+    .hj-icon, .hj-icon-dis   { font-size: 1.2rem; margin: 2px 0; }
+    .hj-badge, .hj-badge-dis, .hj-soon { font-size: 9px; padding: 2px 7px; }
+    [data-testid="stHorizontalBlock"] div[data-testid="stButton"] > button { height: 40px !important; font-size: 11px !important; }
+    .hj-btn-dis { height: 40px; font-size: 11px; }
 }
 </style>
 """, unsafe_allow_html=True)
 
-    col_h1, col_h2 = st.columns(2)
-    with col_h1:
-        coil_clicked = st.button("GO_COIL", key="hidden_coil")
-    with col_h2:
-        cutting_clicked = st.button("GO_CUTTING", key="hidden_cutting")
 
-    if coil_clicked:
-        st.session_state.page = "coil"
-        st.rerun()
-    if cutting_clicked:
-        st.session_state.page = "cutting"
-        st.rerun()
+# ═══════════════════════════════════════
+#  홈 화면
+# ═══════════════════════════════════════
+def show_home():
+    st.markdown("<style>[data-testid='stSidebar']{display:none!important;}</style>",
+                unsafe_allow_html=True)
 
-    # ── 메인 HTML: 배너 + 카드 + 버튼 전부 ──
-    st.markdown(f"""
-<style>
-/* 숨김 버튼 wrapper 높이 0 */
-[data-testid="stVerticalBlock"] > div:nth-child(2),
-[data-testid="stVerticalBlock"] > div:nth-child(3) {{
-    height: 0 !important;
-    overflow: hidden !important;
-    padding: 0 !important;
-    margin: 0 !important;
-    visibility: hidden !important;
-}}
-
-/* 배너 */
-.hj-banner {{
+    # ── 1) 배너 HTML (f-string — BG_B64, logo_tag 변수 사용) ──
+    # CSS는 위 전역 블록에 있으므로 여기선 HTML만
+    banner_html = f"""
+<div style="
     position:relative; width:100%; min-height:210px; overflow:hidden;
     background:#0d0d0d; display:flex; flex-direction:column;
-    justify-content:space-between; padding:38px 24px 24px 24px; box-sizing:border-box; line-height:1;
-}}
-.hj-banner-bg {{
-    position:absolute; inset:0;
+    justify-content:space-between; padding:38px 24px 24px 24px;
+    box-sizing:border-box; line-height:1;
+">
+  <div style="position:absolute;inset:0;
     background-image:url('data:image/jpeg;base64,{BG_B64}');
-    background-size:cover; background-position:center 30%;
-    opacity:.32; filter:grayscale(15%);
-}}
-.hj-banner-overlay {{
-    position:absolute; inset:0;
+    background-size:cover;background-position:center 30%;
+    opacity:.32;filter:grayscale(15%);"></div>
+  <div style="position:absolute;inset:0;
     background:linear-gradient(140deg,rgba(10,10,10,.92) 0%,rgba(20,20,20,.68) 55%,rgba(255,140,0,.10) 100%);
-}}
-.hj-banner-top {{
-    position:relative; z-index:2; display:flex;
-    justify-content:space-between; align-items:center; gap:8px;
-}}
-.hj-banner-bottom {{ position:relative; z-index:2; margin-top:14px; }}
-.hj-qms  {{ font-size:clamp(8px,2vw,10px); font-weight:700; color:#FF8C00; letter-spacing:.2em; text-transform:uppercase; margin-bottom:6px; }}
-.hj-title {{ font-size:clamp(1.2rem,4vw,2rem); font-weight:900; color:#fff; line-height:1.25; margin-bottom:6px; letter-spacing:-.02em; word-break:keep-all; }}
-.hj-title span {{ color:#FF8C00; }}
-.hj-sub   {{ font-size:clamp(10px,2.5vw,12px); color:rgba(255,255,255,.5); }}
-.hj-team-badge {{
-    background:rgba(255,140,0,.2); border:1px solid rgba(255,140,0,.5); color:#FFB347;
-    font-size:clamp(9px,2.5vw,11px); font-weight:700; padding:4px 10px;
-    border-radius:20px; letter-spacing:.06em; white-space:nowrap;
-}}
-
-/* 카드 영역 */
-.hj-section {{
-    background:#f0f2f6;
-    padding:20px 28px 28px 28px;
-    box-sizing:border-box;
-}}
-.hj-grid {{
-    display:grid;
-    grid-template-columns:repeat(4,1fr);
-    gap:16px;
-}}
-
-/* 카드 단위 (카드+버튼 묶음) */
-.hj-item {{
-    display:flex;
-    flex-direction:column;
-    border-radius:14px;
-    overflow:hidden;
-    box-shadow:0 2px 8px rgba(0,0,0,.07);
-}}
-.hj-item-disabled {{
-    display:flex;
-    flex-direction:column;
-    border-radius:14px;
-    overflow:hidden;
-    box-shadow:0 1px 4px rgba(0,0,0,.04);
-    opacity:.72;
-}}
-
-/* 카드 본문 */
-.hj-card {{
-    background:#fff;
-    border:1.5px solid #e8eaed;
-    border-bottom:none;
-    border-radius:14px 14px 0 0;
-    padding:18px 18px 16px 18px;
-    flex:1;
-    display:flex;
-    flex-direction:column;
-    gap:5px;
-}}
-.hj-card-disabled {{
-    background:#f8f9fa;
-    border:1.5px solid #e2e5e9;
-    border-bottom:none;
-    border-radius:14px 14px 0 0;
-    padding:18px 18px 16px 18px;
-    flex:1;
-    display:flex;
-    flex-direction:column;
-    gap:5px;
-}}
-
-.hj-badge     {{ background:#FFF3E0;color:#E65100;font-size:10px;font-weight:800;padding:3px 10px;border-radius:20px;letter-spacing:.06em;width:fit-content; }}
-.hj-badge-dis {{ background:#f0f0f0;color:#9ca3af;font-size:10px;font-weight:800;padding:3px 10px;border-radius:20px;letter-spacing:.06em;width:fit-content; }}
-.hj-soon      {{ background:#f3f4f6;color:#9ca3af;font-size:9px;font-weight:800;padding:3px 8px;border-radius:20px;border:1px solid #e5e7eb;letter-spacing:.08em;width:fit-content; }}
-.hj-badge-row {{ display:flex; gap:6px; align-items:center; flex-wrap:wrap; }}
-.hj-icon      {{ font-size:1.75rem; margin:4px 0; }}
-.hj-icon-dis  {{ font-size:1.75rem; margin:4px 0; filter:grayscale(1); opacity:.35; }}
-.hj-ttl       {{ font-size:1rem; font-weight:800; color:#1a1a2e; }}
-.hj-ttl-dis   {{ font-size:1rem; font-weight:800; color:#9ca3af; }}
-.hj-desc      {{ font-size:.76rem; color:#6b7280; line-height:1.6; }}
-.hj-desc-dis  {{ font-size:.76rem; color:#b0b7c0; line-height:1.6; }}
-
-/* 활성 버튼 */
-.hj-btn {{
-    display:flex; align-items:center; justify-content:center; gap:6px;
-    width:100%; height:46px;
-    background:linear-gradient(135deg,#FF8C00 0%,#E65100 100%);
-    color:#fff; font-size:14px; font-weight:700;
-    border:none; border-radius:0 0 14px 14px;
-    cursor:pointer; transition:opacity .15s;
-    -webkit-tap-highlight-color:transparent;
-    padding:0; box-sizing:border-box;
-    font-family:'Noto Sans KR',sans-serif;
-}}
-.hj-btn:hover {{ opacity:.85; }}
-.hj-btn:active {{ opacity:.7; transform:scale(.99); }}
-
-/* 비활성 버튼 */
-.hj-btn-dis {{
-    display:flex; align-items:center; justify-content:center; gap:6px;
-    width:100%; height:46px;
-    background:#e9ecef; color:#adb5bd;
-    font-size:14px; font-weight:700;
-    border:none; border-radius:0 0 14px 14px;
-    cursor:not-allowed; pointer-events:none;
-    font-family:'Noto Sans KR',sans-serif;
-}}
-
-/* ═══ 모바일 ═══ */
-@media (max-width:720px) {{
-    .hj-section {{ padding:16px 14px 22px 14px; }}
-    .hj-grid {{ grid-template-columns:repeat(2,1fr); gap:12px; }}
-    .hj-card, .hj-card-disabled {{ padding:15px 13px 12px 13px; }}
-    .hj-ttl, .hj-ttl-dis {{ font-size:.9rem; }}
-    .hj-icon, .hj-icon-dis {{ font-size:1.45rem; }}
-    .hj-btn, .hj-btn-dis {{ height:42px; font-size:12px; }}
-}}
-@media (max-width:400px) {{
-    .hj-section {{ padding:12px 10px 18px 10px; }}
-    .hj-grid {{ gap:10px; }}
-    .hj-card, .hj-card-disabled {{ padding:12px 10px 10px 10px; gap:3px; }}
-    .hj-desc, .hj-desc-dis {{ display:none; }}
-    .hj-ttl, .hj-ttl-dis {{ font-size:.82rem; }}
-    .hj-icon, .hj-icon-dis {{ font-size:1.25rem; margin:2px 0; }}
-    .hj-btn, .hj-btn-dis {{ height:40px; font-size:11px; }}
-    .hj-badge, .hj-badge-dis, .hj-soon {{ font-size:9px; padding:2px 7px; }}
-}}
-</style>
-
-<!-- 배너 -->
-<div class="hj-banner">
-  <div class="hj-banner-bg"></div>
-  <div class="hj-banner-overlay"></div>
-  <div class="hj-banner-top">
+  "></div>
+  <div style="position:relative;z-index:2;display:flex;justify-content:space-between;align-items:center;gap:8px;">
     <div style="flex-shrink:0;">{logo_tag}</div>
-    <div class="hj-team-badge">품질기술팀</div>
+    <div style="background:rgba(255,140,0,.2);border:1px solid rgba(255,140,0,.5);color:#FFB347;
+      font-size:clamp(9px,2.5vw,11px);font-weight:700;padding:4px 10px;border-radius:20px;
+      letter-spacing:.06em;white-space:nowrap;">품질기술팀</div>
   </div>
-  <div class="hj-banner-bottom">
-    <div class="hj-qms">Quality Management System</div>
-    <div class="hj-title">품질 통합 <span>관리 시스템</span></div>
-    <div class="hj-sub">아래에서 사용할 앱을 선택하세요</div>
-  </div>
-</div>
-
-<!-- 카드 + 버튼 그리드 -->
-<div class="hj-section">
-  <div class="hj-grid">
-
-    <!-- 1: 중간검사성적서 -->
-    <div class="hj-item">
-      <div class="hj-card">
-        <span class="hj-badge">INSPECTION</span>
-        <div class="hj-icon">📐</div>
-        <div class="hj-ttl">중간검사성적서</div>
-        <div class="hj-desc">재단일별 코일 실두께 측정 데이터<br>조회 및 현황 파악</div>
-      </div>
-      <button class="hj-btn" onclick="triggerHidden('hidden_coil')">📐 중간검사성적서 들어가기</button>
+  <div style="position:relative;z-index:2;margin-top:14px;">
+    <div style="font-size:clamp(8px,2vw,10px);font-weight:700;color:#FF8C00;
+      letter-spacing:.2em;text-transform:uppercase;margin-bottom:6px;">Quality Management System</div>
+    <div style="font-size:clamp(1.2rem,4vw,2rem);font-weight:900;color:#fff;
+      line-height:1.25;margin-bottom:6px;letter-spacing:-.02em;word-break:keep-all;">
+      품질 통합 <span style="color:#FF8C00;">관리 시스템</span>
     </div>
-
-    <!-- 2: 품질통합관리 -->
-    <div class="hj-item">
-      <div class="hj-card">
-        <span class="hj-badge">QUALITY</span>
-        <div class="hj-icon">📋</div>
-        <div class="hj-ttl">품질통합관리</div>
-        <div class="hj-desc">고객 사양서 · 품질 보증 기준<br>부적합 관리 대장</div>
-      </div>
-      <button class="hj-btn" onclick="triggerHidden('hidden_cutting')">📋 품질통합관리 들어가기</button>
-    </div>
-
-    <!-- 3: 준비중 -->
-    <div class="hj-item-disabled">
-      <div class="hj-card-disabled">
-        <div class="hj-badge-row">
-          <span class="hj-badge-dis">SYSTEM</span>
-          <span class="hj-soon">COMING SOON</span>
-        </div>
-        <div class="hj-icon-dis">🔧</div>
-        <div class="hj-ttl-dis">준비 중</div>
-        <div class="hj-desc-dis">서비스 준비 중입니다</div>
-      </div>
-      <div class="hj-btn-dis">🔧 준비 중</div>
-    </div>
-
-    <!-- 4: 준비중 -->
-    <div class="hj-item-disabled">
-      <div class="hj-card-disabled">
-        <div class="hj-badge-row">
-          <span class="hj-badge-dis">SYSTEM</span>
-          <span class="hj-soon">COMING SOON</span>
-        </div>
-        <div class="hj-icon-dis">📊</div>
-        <div class="hj-ttl-dis">준비 중</div>
-        <div class="hj-desc-dis">서비스 준비 중입니다</div>
-      </div>
-      <div class="hj-btn-dis">📊 준비 중</div>
-    </div>
-
+    <div style="font-size:clamp(10px,2.5vw,12px);color:rgba(255,255,255,.5);">아래에서 사용할 앱을 선택하세요</div>
   </div>
 </div>
+"""
+    st.markdown(banner_html, unsafe_allow_html=True)
 
-<script>
-function triggerHidden(key) {{
-    // Streamlit 숨김 버튼을 key로 찾아 클릭
-    const btns = window.parent.document.querySelectorAll('button[kind="secondary"]');
-    for (let b of btns) {{
-        if (b.innerText.trim() === 'GO_COIL' && key === 'hidden_coil') {{
-            b.click(); return;
-        }}
-        if (b.innerText.trim() === 'GO_CUTTING' && key === 'hidden_cutting') {{
-            b.click(); return;
-        }}
-    }}
-    // fallback: data-testid로 찾기
-    const allBtns = window.parent.document.querySelectorAll('button');
-    for (let b of allBtns) {{
-        if (b.innerText.trim() === 'GO_COIL' && key === 'hidden_coil') {{
-            b.click(); return;
-        }}
-        if (b.innerText.trim() === 'GO_CUTTING' && key === 'hidden_cutting') {{
-            b.click(); return;
-        }}
-    }}
-}}
-</script>
+    # ── 2) 카드 HTML (f-string 없이 — 중괄호 충돌 위험 없음) ──
+    # 각 카드를 st.columns 열 안에 개별 st.markdown으로 렌더링
+    # → 카드 바로 아래에 st.button이 위치 → CSS로 완벽히 밀착
+    col1, col2, col3, col4 = st.columns(4)
+
+    with col1:
+        st.markdown("""
+<div class="hj-card">
+  <span class="hj-badge">INSPECTION</span>
+  <div class="hj-icon">📐</div>
+  <div class="hj-ttl">중간검사성적서</div>
+  <div class="hj-desc">재단일별 코일 실두께 측정 데이터<br>조회 및 현황 파악</div>
+</div>
+""", unsafe_allow_html=True)
+        if st.button("📐 중간검사성적서 들어가기", key="btn_coil", use_container_width=True):
+            st.session_state.page = "coil"
+            st.rerun()
+
+    with col2:
+        st.markdown("""
+<div class="hj-card">
+  <span class="hj-badge">QUALITY</span>
+  <div class="hj-icon">📋</div>
+  <div class="hj-ttl">품질통합관리</div>
+  <div class="hj-desc">고객 사양서 · 품질 보증 기준<br>부적합 관리 대장</div>
+</div>
+""", unsafe_allow_html=True)
+        if st.button("📋 품질통합관리 들어가기", key="btn_cutting", use_container_width=True):
+            st.session_state.page = "cutting"
+            st.rerun()
+
+    with col3:
+        st.markdown("""
+<div class="hj-card-dis">
+  <div class="hj-badge-row">
+    <span class="hj-badge-dis">SYSTEM</span>
+    <span class="hj-soon">COMING SOON</span>
+  </div>
+  <div class="hj-icon-dis">🔧</div>
+  <div class="hj-ttl-dis">준비 중</div>
+  <div class="hj-desc-dis">서비스 준비 중입니다</div>
+</div>
+<div class="hj-btn-dis">🔧&nbsp;준비 중</div>
+""", unsafe_allow_html=True)
+
+    with col4:
+        st.markdown("""
+<div class="hj-card-dis">
+  <div class="hj-badge-row">
+    <span class="hj-badge-dis">SYSTEM</span>
+    <span class="hj-soon">COMING SOON</span>
+  </div>
+  <div class="hj-icon-dis">📊</div>
+  <div class="hj-ttl-dis">준비 중</div>
+  <div class="hj-desc-dis">서비스 준비 중입니다</div>
+</div>
+<div class="hj-btn-dis">📊&nbsp;준비 중</div>
 """, unsafe_allow_html=True)
 
 
+# ═══════════════════════════════════════
+#  서브페이지 헤더
+# ═══════════════════════════════════════
 def _render_home_btn():
     st.markdown(f"""
 <div class="home-bar">
@@ -345,6 +319,9 @@ def _render_home_btn():
     st.markdown("<div style='height:8px'></div>", unsafe_allow_html=True)
 
 
+# ═══════════════════════════════════════
+#  라우팅
+# ═══════════════════════════════════════
 if st.session_state.page == "home":
     show_home()
 elif st.session_state.page == "coil":
