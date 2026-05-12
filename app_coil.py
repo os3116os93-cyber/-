@@ -113,7 +113,6 @@ def load_data():
 
 def run():
     st.markdown("""
-st.markdown("""
 <style>
 .coil-title { font-size:1.4rem; font-weight:800; color:#1a1a2e; margin-bottom:2px; }
 .coil-sub   { font-size:13px; color:#6b7280; margin-bottom:14px; }
@@ -124,15 +123,14 @@ st.markdown("""
 }
 .filter-label { font-size:12px; font-weight:700; color:#374151; margin-bottom:8px; }
 
-/* ✅ 여기서부터 추가/수정된 내용입니다 */
+/* 조회 페이지 가로폭 정돈 */
 [data-testid="stAppViewContainer"] .main .block-container {
-    max-width: 1200px !important;  /* 1. 너무 넓어지지 않게 가로 길이를 딱 잡아줍니다 */
-    padding-left: 5% !important;   /* 2. 왼쪽 여백을 줍니다 */
-    padding-right: 5% !important;  /* 3. 오른쪽 여백을 줍니다 */
-    margin: 0 auto !important;     /* 4. 화면 정중앙에 오게 합니다 */
+    max-width: 1200px !important;
+    padding-left: 5% !important;
+    padding-right: 5% !important;
+    margin: 0 auto !important;
 }
 
-/* 스마트폰에서는 여백을 조금 줄여서 글자가 잘 안 잘리게 합니다 */
 @media (max-width: 720px) {
     [data-testid="stAppViewContainer"] .main .block-container {
         padding-left: 15px !important;
