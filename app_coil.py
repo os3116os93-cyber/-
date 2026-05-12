@@ -121,9 +121,39 @@ def run():
     padding:14px 18px 12px 18px; margin-bottom:14px;
     box-shadow:0 1px 4px rgba(0,0,0,0.05);
 }
-.filter-label { font-size:12px; font-weight:700; color:#374151; margin-bottom:8px; }
+.filter-label { font-size:12px; font-weight:700; color:#374151; margin-bottom:6px; }
 /* 좌우 여백 */
 .block-container { padding-left:2rem !important; padding-right:2rem !important; }
+
+/* ── 필터 박스 내부 여백 제거 ── */
+.filter-wrap [data-testid="stHorizontalBlock"] {
+    gap: 14px !important;
+    padding: 0 !important;
+    margin-top: 0 !important;
+    margin-bottom: 0 !important;
+    background: transparent !important;
+}
+.filter-wrap [data-testid="stHorizontalBlock"] > div {
+    padding: 0 !important;
+    margin: 0 !important;
+}
+/* 날짜·텍스트 입력 라벨 */
+.filter-wrap [data-testid="stDateInput"] > label,
+.filter-wrap [data-testid="stTextInput"] > label {
+    font-size: 12px !important;
+    font-weight: 700 !important;
+    color: #374151 !important;
+    padding-bottom: 2px !important;
+    margin-bottom: 0 !important;
+}
+/* 행 사이 간격: 날짜행 ↔ 텍스트행 */
+.filter-wrap [data-testid="stVerticalBlock"] {
+    gap: 8px !important;
+}
+/* 필터 박스 padding 축소 */
+.filter-wrap {
+    padding: 12px 18px 10px 18px !important;
+}
 </style>
 """, unsafe_allow_html=True)
 
