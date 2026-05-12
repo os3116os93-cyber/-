@@ -135,8 +135,8 @@ st.markdown("""
     border: none !important;
     border-radius: 0 0 14px 14px !important;
     font-weight: 700 !important;
-    font-size: 1px !important;
-    height: 40px !important;
+    font-size: 14px !important;
+    height: 46px !important;
     width: 100% !important;
     margin: 0 !important;
     padding: 0 !important;
@@ -174,7 +174,7 @@ st.markdown("""
     .hj-card, .hj-card-dis { padding: 14px 13px 12px 13px; }
     .hj-ttl, .hj-ttl-dis   { font-size: .9rem; }
     .hj-icon, .hj-icon-dis  { font-size: 1.4rem; }
-    [data-testid="stHorizontalBlock"] div[data-testid="stButton"] > button { height: 42px !important; font-size: 12px !important; }
+    [data-testid="stHorizontalBlock"] div[data-testid="stButton"] > button { height: 42px !important; font-size: 8px !important; }
     .hj-btn-dis { height: 42px; font-size: 12px; }
 }
 @media (max-width: 400px) {
