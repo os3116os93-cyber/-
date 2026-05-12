@@ -174,8 +174,8 @@ st.markdown("""
     .hj-card, .hj-card-dis { padding: 14px 13px 12px 13px; }
     .hj-ttl, .hj-ttl-dis   { font-size: .9rem; }
     .hj-icon, .hj-icon-dis  { font-size: 1.4rem; }
-    [data-testid="stHorizontalBlock"] div[data-testid="stButton"] > button { height: 42px !important; font-size: 1px !important; }
-    .hj-btn-dis { height: 42px; font-size: 1px; }
+    [data-testid="stHorizontalBlock"] div[data-testid="stButton"] > button { height: 42px !important; font-size: 12px !important; }
+    .hj-btn-dis { height: 42px; font-size: 12px; }
 }
 @media (max-width: 400px) {
     .hj-outer          { padding: 12px 10px 0 10px; }
@@ -192,9 +192,9 @@ st.markdown("""
     .hj-desc, .hj-desc-dis  { display: none; }
     .hj-ttl, .hj-ttl-dis    { font-size: .82rem; }
     .hj-icon, .hj-icon-dis   { font-size: 1.0rem; margin: 2px 0; }
-    .hj-badge, .hj-badge-dis, .hj-soon { font-size: 1px; padding: 2px 7px; }
-    [data-testid="stHorizontalBlock"] div[data-testid="stButton"] > button { height: 40px !important; font-size: 1px !important; }
-    .hj-btn-dis { height: 40px; font-size: 1px; }
+    .hj-badge, .hj-badge-dis, .hj-soon { font-size: 12px; padding: 2px 7px; }
+    [data-testid="stHorizontalBlock"] div[data-testid="stButton"] > button { height: 40px !important; font-size: 12px !important; }
+    .hj-btn-dis { height: 40px; font-size: 12px; }
 }
 </style>
 """, unsafe_allow_html=True)
