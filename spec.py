@@ -119,8 +119,8 @@ st.markdown("""
 .hj-badge-row { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }
 .hj-icon      { font-size: 1.75rem; margin: 4px 0; }
 .hj-icon-dis  { font-size: 1.75rem; margin: 4px 0; filter: grayscale(1); opacity: .35; }
-.hj-ttl       { font-size: 1rem;  font-weight: 800; color: #1a1a2e; }
-.hj-ttl-dis   { font-size: 1rem;  font-weight: 800; color: #9ca3af; }
+.hj-ttl       { font-size: 0.82rem;  font-weight: 800; color: #1a1a2e; }
+.hj-ttl-dis   { font-size: 0.82rem;  font-weight: 800; color: #9ca3af; }
 .hj-desc      { font-size: .76rem; color: #6b7280;  line-height: 1.6; }
 .hj-desc-dis  { font-size: .76rem; color: #b0b7c0;  line-height: 1.6; }
 
