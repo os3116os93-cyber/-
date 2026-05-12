@@ -123,7 +123,7 @@ def run():
 }
 .filter-label { font-size:12px; font-weight:700; color:#374151; margin-bottom:8px; }
 /* 좌우 여백 */
-.block-container { padding-left:2rem !important; padding-right:2rem !important; }
+.block-container { padding-left:5% !important; padding-right:5% !important; }
 </style>
 """, unsafe_allow_html=True)
 
