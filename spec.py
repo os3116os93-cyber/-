@@ -119,8 +119,8 @@ st.markdown("""
 .hj-badge-row { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }
 .hj-icon      { font-size: 1.75rem; margin: 4px 0; }
 .hj-icon-dis  { font-size: 1.75rem; margin: 4px 0; filter: grayscale(1); opacity: .35; }
-.hj-ttl       { font-size: 0.82rem;  font-weight: 800; color: #1a1a2e; }
-.hj-ttl-dis   { font-size: 0.82rem;  font-weight: 800; color: #9ca3af; }
+.hj-ttl       { font-size: 1rem;  font-weight: 800; color: #1a1a2e; }
+.hj-ttl-dis   { font-size: 1rem;  font-weight: 800; color: #9ca3af; }
 .hj-desc      { font-size: .76rem; color: #6b7280;  line-height: 1.6; }
 .hj-desc-dis  { font-size: .76rem; color: #b0b7c0;  line-height: 1.6; }
 
@@ -135,8 +135,8 @@ st.markdown("""
     border: none !important;
     border-radius: 0 0 14px 14px !important;
     font-weight: 700 !important;
-    font-size: 14px !important;
-    height: 46px !important;
+    font-size: 1rem !important;
+    height: 48px !important;
     width: 100% !important;
     margin: 0 !important;
     padding: 0 !important;
@@ -151,7 +151,7 @@ st.markdown("""
     display: flex; align-items: center; justify-content: center; gap: 6px;
     width: 100%; height: 46px;
     background: #e9ecef; color: #adb5bd;
-    font-size: 14px; font-weight: 700;
+    font-size: 1rem; font-weight: 700;
     border: none; border-radius: 0 0 14px 14px;
     cursor: not-allowed; pointer-events: none;
     box-sizing: border-box; margin: 0;
@@ -174,8 +174,8 @@ st.markdown("""
     .hj-card, .hj-card-dis { padding: 14px 13px 12px 13px; }
     .hj-ttl, .hj-ttl-dis   { font-size: .9rem; }
     .hj-icon, .hj-icon-dis  { font-size: 1.4rem; }
-    [data-testid="stHorizontalBlock"] div[data-testid="stButton"] > button { height: 42px !important; font-size: 12px !important; }
-    .hj-btn-dis { height: 42px; font-size: 12px; }
+    [data-testid="stHorizontalBlock"] div[data-testid="stButton"] > button { height: 46px !important; font-size: .9rem !important; }
+    .hj-btn-dis { height: 46px; font-size: .9rem; }
 }
 @media (max-width: 400px) {
     .hj-outer          { padding: 12px 10px 0 10px; }
@@ -193,8 +193,8 @@ st.markdown("""
     .hj-ttl, .hj-ttl-dis    { font-size: .82rem; }
     .hj-icon, .hj-icon-dis   { font-size: 1.2rem; margin: 2px 0; }
     .hj-badge, .hj-badge-dis, .hj-soon { font-size: 9px; padding: 2px 7px; }
-    [data-testid="stHorizontalBlock"] div[data-testid="stButton"] > button { height: 40px !important; font-size: 11px !important; }
-    .hj-btn-dis { height: 40px; font-size: 11px; }
+    [data-testid="stHorizontalBlock"] div[data-testid="stButton"] > button { height: 44px !important; font-size: .82rem !important; }
+    .hj-btn-dis { height: 44px; font-size: .82rem; }
 }
 </style>
 """, unsafe_allow_html=True)
@@ -226,7 +226,7 @@ def show_home():
   <div style="position:relative;z-index:2;display:flex;justify-content:space-between;align-items:center;gap:8px;">
     <div style="flex-shrink:0;">{logo_tag}</div>
     <div style="background:rgba(255,140,0,.2);border:1px solid rgba(255,140,0,.5);color:#FFB347;
-      font-size:clamp(6px,2.5vw,11px);font-weight:700;padding:4px 10px;border-radius:20px;
+      font-size:clamp(9px,2.5vw,11px);font-weight:700;padding:4px 10px;border-radius:20px;
       letter-spacing:.06em;white-space:nowrap;">품질기술팀</div>
   </div>
   <div style="position:relative;z-index:2;margin-top:14px;">
