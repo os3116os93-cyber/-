@@ -10,6 +10,7 @@ try:
 except NameError:
     BASE_DIR = os.getcwd()
 
+ADMIN_PASSWORD = st.secrets.get("ADMIN_PASSWORD", "admin1234")
 SHEET_ID       = st.secrets.get("SHEET_ID", "")
 SCOPE = [
     "https://spreadsheets.google.com/feeds",
@@ -21,6 +22,12 @@ NC_COLS = ["NO", "접수일", "고객사", "이슈유형", "제품규격", "생�
 NC_NUM_COLS  = ["출고수량", "출고중량(kg)", "클레임수량", "클레임중량(kg)", "손실비용(원)"]
 NC_TEXT_COLS = ["접수일", "고객사", "이슈유형", "제품규격", "생산라인",
                 "생산일", "출고일", "이슈상세", "원인", "조치대책"]
+
+for k, v in {"is_admin": False, "edit_idx": None, "show_add_form": False,
+             "nc_edit_idx": None, "nc_show_add": False, "nc_sel_idx": None}.items():
+    if k not in st.session_state:
+        st.session_state[k] = v
+
 
 # ── Google Sheets 연결 ────────────────────────────────────────────
 def get_gsheet(sheet_index=0):
@@ -214,57 +221,9 @@ def build_standard_table():
             "</table></div>")
 
 
-logo_base64 = None  # run() 호출 시 초기화
-
-
-def run(login_role=None):
+def run():
     global logo_base64
-    # login_role을 session_state에 동기화 (streamlit_app에서 전달받은 값 우선)
-    if login_role is not None:
-        st.session_state["login_role"] = login_role
-
-    # session_state 초기화 (is_admin 제거 — login_role로 대체)
-    for k, v in {"edit_idx": None, "show_add_form": False,
-                 "nc_edit_idx": None, "nc_show_add": False, "nc_sel_idx": None}.items():
-        if k not in st.session_state:
-            st.session_state[k] = v
-
     logo_base64 = get_image_base64(os.path.join(BASE_DIR, "hanjin_logo.png"))
-
-    # 사이드바 복원 + 본문 여백 설정
-    st.markdown("""
-<style>
-/* 사이드바 강제 복원 */
-html body section[data-testid="stSidebar"],
-html body [data-testid="stSidebar"],
-section[data-testid="stSidebar"] {
-    display: flex !important;
-    visibility: visible !important;
-    opacity: 1 !important;
-    width: auto !important;
-}
-/* 사이드바 접기/펼치기 화살표 아이콘 깨짐 방지 */
-[data-testid="stSidebarCollapsedControl"] { display: none !important; }
-button[data-testid="baseButton-headerNoPadding"] svg { display: none !important; }
-section[data-testid="stSidebarContent"] { padding-top: 1rem; }
-
-/* 본문 와이드뷰: 사이드바 제외 메인 영역을 넓게 */
-.block-container {
-    padding-left: 2.5rem !important;
-    padding-right: 2.5rem !important;
-    padding-top: 1.2rem !important;
-    max-width: 1400px !important;
-    margin: 0 auto !important;
-}
-@media(max-width:768px){
-  .block-container {
-    padding-left: 0.8rem !important;
-    padding-right: 0.8rem !important;
-    padding-top: 0.5rem !important;
-  }
-}
-</style>
-""", unsafe_allow_html=True)
 
     # ── CSS ──────────────────────────────────────────────────────────
     st.markdown("""
@@ -306,13 +265,7 @@ section[data-testid="stSidebarContent"] { padding-top: 1rem; }
 def render_header():
     logo = ("<img src=\"data:image/png;base64," + logo_base64 + "\" class=\"brand-logo\">"
             if logo_base64 else "<span style=\"color:#ccc;font-size:12px;\">[로고 미검출]</span>")
-    role = st.session_state.get("login_role", None)
-    if role == "admin":
-        badge = "<span class=\"admin-badge\">🔓 관리자 모드</span>"
-    elif role == "user":
-        badge = "<span class=\"admin-badge\" style='background:#4CAF50;'>👤 일반 사용자</span>"
-    else:
-        badge = ""
+    badge = "<span class=\"admin-badge\">🔓 관리자 모드</span>" if st.session_state.is_admin else ""
     st.markdown(
         "<div class=\"header-wrapper\">"
         "<div>" + logo + "</div>"
@@ -320,19 +273,43 @@ def render_header():
         "</div>", unsafe_allow_html=True)
 
 
-def render_role_status():
-    """사이드바 역할/로그인 상태 표시 (로그인은 홈에서만)"""
+def render_admin_login():
+    """사이드바 관리자 로그인 - 엔터키 지원 + 자동로그인"""
     st.sidebar.markdown("---")
-    role = st.session_state.get("login_role", None)
-    if role == "admin":
-        st.sidebar.markdown("🔓 **관리자 모드**")
-    elif role == "user":
-        st.sidebar.markdown("👤 **일반 사용자**")
+    if not st.session_state.is_admin:
+        # 자동로그인: query_params 확인
+        auto_key = st.query_params.get("auto_admin", "")
+        if auto_key == ADMIN_PASSWORD:
+            st.session_state.is_admin = True
+            st.rerun()
+
+        with st.sidebar.expander("🔐 관리자 로그인"):
+            pw = st.text_input("비밀번호", type="password", key="admin_pw_input",
+                               help="입력 후 엔터 또는 로그인 버튼")
+            remember = st.checkbox("자동 로그인 설정", key="admin_remember")
+            if st.button("로그인", key="admin_login_btn"):
+                if pw == ADMIN_PASSWORD:
+                    st.session_state.is_admin = True
+                    if remember:
+                        st.query_params["auto_admin"] = ADMIN_PASSWORD
+                    st.rerun()
+                else:
+                    st.error("비밀번호가 틀렸습니다.")
+            # 엔터키 지원: 동일 비밀번호가 이전과 다를 때만 처리
+            if pw and pw == ADMIN_PASSWORD and st.session_state.get("_pw_enter") != pw:
+                st.session_state["_pw_enter"] = pw
+                st.session_state.is_admin = True
+                if remember:
+                    st.query_params["auto_admin"] = ADMIN_PASSWORD
+                st.rerun()
     else:
-        st.sidebar.markdown(
-            "<span style='color:#9ca3af;font-size:12px;'>비로그인 상태 — 홈에서 로그인하세요</span>",
-            unsafe_allow_html=True
-        )
+        if st.sidebar.button("🔒 관리자 로그아웃"):
+            for k in ["is_admin", "edit_idx", "show_add_form",
+                      "nc_edit_idx", "nc_show_add", "nc_sel_idx"]:
+                st.session_state[k] = False if k == "is_admin" else None
+            if "auto_admin" in st.query_params:
+                del st.query_params["auto_admin"]
+            st.rerun()
 
 
 # ── 탭1 렌더 ─────────────────────────────────────────────────────
@@ -412,7 +389,7 @@ def render_nc_detail(row, idx, df_nc):
     html += "</div>"
     st.markdown(html, unsafe_allow_html=True)
 
-    if st.session_state.get("login_role") == "admin":
+    if st.session_state.is_admin:
         a1, a2 = st.columns([1, 1])
         if a1.button("✏️ 수정", key="nc_edit_btn_" + str(idx)):
             st.session_state.nc_edit_idx = idx
@@ -528,39 +505,10 @@ def render_nc_edit_form(df, idx):
 
 # ── MAIN ─────────────────────────────────────────────────────────
 def main():
-    role = st.session_state.get("login_role", None)
-    is_admin = (role == "admin")
-
-    # ── 사이드바: 탭 컨텍스트 밖에서 모든 사이드바 위젯 렌더 ──────
-    if st.sidebar.button("← 홈으로 돌아가기", key="cutting_home_btn"):
-        st.session_state.page = "home"
-        st.rerun()
-
-    render_role_status()
-
-    # 고객사 목록은 탭 밖에서 사이드바에 렌더 (탭 안에서 st.sidebar 호출 시 오류 발생)
-    df_cust = load_customer_data()
-    customer_list = df_cust.iloc[:, 0].tolist() if df_cust is not None else []
-
-    if df_cust is not None:
-        st.sidebar.header("🏢 고객사 목록")
-        if is_admin:
-            if st.sidebar.button("➕ 고객사 추가", key="open_add_form"):
-                st.session_state.show_add_form = True
-                st.session_state.edit_idx = None
-        sel_idx = st.sidebar.radio(
-            "업체를 선택하세요:",
-            options=list(range(len(df_cust))),
-            format_func=lambda i: customer_list[i],
-            index=None, key="customer_radio"
-        )
-    else:
-        sel_idx = None
-
-    # ── 본문 ────────────────────────────────────────────────────
+    render_header()
     st.markdown("<div class=\"main-title\">📋 품질 통합 관리 시스템</div>", unsafe_allow_html=True)
 
-    if is_admin:
+    if st.session_state.is_admin:
         tab1, tab2, tab3, tab4 = st.tabs(["📄 고객 사양서", "⚖️ 품질 보증 기준", "🏭 제강사 정보", "🚨 부적합 관리"])
     else:
         tab1, tab2, tab3 = st.tabs(["📄 고객 사양서", "⚖️ 품질 보증 기준", "🏭 제강사 정보"])
@@ -568,48 +516,59 @@ def main():
 
     # ── 탭1 ──────────────────────────────────────────────────────
     with tab1:
-        if df_cust is None:
-            st.info("고객사 데이터를 불러올 수 없습니다.")
-        elif sel_idx is None and not st.session_state.show_add_form and st.session_state.edit_idx is None:
-            st.markdown("<div class=\"guide-text\">좌상단 화살표를 눌러 고객사를 선택하십시오.</div>", unsafe_allow_html=True)
-        elif is_admin and st.session_state.show_add_form:
-            render_add_form(df_cust)
-        elif is_admin and st.session_state.edit_idx is not None:
-            render_edit_form(df_cust, st.session_state.edit_idx)
-        elif sel_idx is not None:
-            row = df_cust.iloc[sel_idx]
-            st.markdown("<div class=\"customer-title\">■ " + str(row.iloc[0]) + "</div>", unsafe_allow_html=True)
-            if is_admin:
-                a1, a2, _ = st.columns([1, 1, 8])
-                if a1.button("수정", key="edit_btn"):
-                    st.session_state.edit_idx = sel_idx
-                    st.session_state.show_add_form = False
-                    st.rerun()
-                if a2.button("삭제", key="delete_btn"):
-                    st.session_state["confirm_delete_" + str(sel_idx)] = True
-                if st.session_state.get("confirm_delete_" + str(sel_idx), False):
-                    st.warning("**'" + str(row.iloc[0]) + "'** 고객사를 정말 삭제하시겠습니까?")
-                    d1, d2 = st.columns([1, 5])
-                    if d1.button("확인 삭제", key="confirm_del"):
-                        updated = df_cust.drop(index=sel_idx).reset_index(drop=True)
-                        if save_customer_data(updated):
-                            st.session_state["confirm_delete_" + str(sel_idx)] = False
-                            st.success("삭제되었습니다.")
-                            st.rerun()
-                    if d2.button("취소", key="cancel_del"):
-                        st.session_state["confirm_delete_" + str(sel_idx)] = False
+        df_cust = load_customer_data()
+        if df_cust is not None:
+            customer_list = df_cust.iloc[:, 0].tolist()
+            st.sidebar.header("🏢 고객사 목록")
+            if st.session_state.is_admin:
+                if st.sidebar.button("➕ 고객사 추가", key="open_add_form"):
+                    st.session_state.show_add_form = True
+                    st.session_state.edit_idx = None
+            sel_idx = st.sidebar.radio("업체를 선택하세요:",
+                options=list(range(len(df_cust))),
+                format_func=lambda i: customer_list[i],
+                index=None, key="customer_radio")
+            if sel_idx is None and not st.session_state.show_add_form and st.session_state.edit_idx is None:
+                st.markdown("<div class=\"guide-text\">좌상단 >> 화살표를 눌러 고객사를 선택 하십시오.</div>", unsafe_allow_html=True)
+            if st.session_state.is_admin and st.session_state.show_add_form:
+                render_add_form(df_cust)
+            elif st.session_state.is_admin and st.session_state.edit_idx is not None:
+                render_edit_form(df_cust, st.session_state.edit_idx)
+            elif sel_idx is not None:
+                row = df_cust.iloc[sel_idx]
+                st.markdown("<div class=\"customer-title\">■ " + str(row.iloc[0]) + "</div>", unsafe_allow_html=True)
+                if st.session_state.is_admin:
+                    a1, a2, _ = st.columns([1, 1, 8])
+                    if a1.button("수정", key="edit_btn"):
+                        st.session_state.edit_idx = sel_idx
+                        st.session_state.show_add_form = False
                         st.rerun()
-            for i in range(1, len(row.index)):
-                col_n = row.index[i]
-                raw = row.iloc[i]
-                val = str(raw).strip() if str(raw).strip() not in ("", "nan") else "-"
-                is_sp = any(k in str(col_n) for k in ["특이사항", "주의", "마킹", "포장"])
-                col_c = "#E63946" if is_sp else "#495057"
-                st.markdown(
-                    "<div class=\"notranslate\" translate=\"no\" style=\"display:flex;border:1px solid #DEE2E6;margin-bottom:-1px;\">"
-                    "<div style=\"background:#F8F9FA;width:85px;min-width:85px;padding:10px 4px;font-weight:bold;color:" + col_c + ";border-right:1px solid #DEE2E6;display:flex;align-items:center;justify-content:center;text-align:center;font-size:12px;line-height:1.2;word-break:keep-all;\">" + str(col_n) + "</div>"
-                    "<div class=\"notranslate\" translate=\"no\" style=\"flex:1;padding:10px;background:white;font-size:13.5px;line-height:1.4;color:#212529;font-weight:500;word-break:break-all;\">" + val + "</div>"
-                    "</div>", unsafe_allow_html=True)
+                    if a2.button("삭제", key="delete_btn"):
+                        st.session_state["confirm_delete_" + str(sel_idx)] = True
+                    if st.session_state.get("confirm_delete_" + str(sel_idx), False):
+                        st.warning("**'" + str(row.iloc[0]) + "'** 고객사를 정말 삭제하시겠습니까?")
+                        d1, d2 = st.columns([1, 5])
+                        if d1.button("확인 삭제", key="confirm_del"):
+                            updated = df_cust.drop(index=sel_idx).reset_index(drop=True)
+                            if save_customer_data(updated):
+                                st.session_state["confirm_delete_" + str(sel_idx)] = False
+                                st.success("삭제되었습니다.")
+                                st.rerun()
+                        if d2.button("취소", key="cancel_del"):
+                            st.session_state["confirm_delete_" + str(sel_idx)] = False
+                            st.rerun()
+                for i in range(1, len(row.index)):
+                    col_n = row.index[i]
+                    raw = row.iloc[i]
+                    val = str(raw).strip() if str(raw).strip() not in ("", "nan") else "-"
+                    is_sp = any(k in str(col_n) for k in ["특이사항", "주의", "마킹", "포장"])
+                    col_c = "#E63946" if is_sp else "#495057"
+                    st.markdown(
+                        "<div class=\"notranslate\" translate=\"no\" style=\"display:flex;border:1px solid #DEE2E6;margin-bottom:-1px;\">"
+                        "<div style=\"background:#F8F9FA;width:85px;min-width:85px;padding:10px 4px;font-weight:bold;color:" + col_c + ";border-right:1px solid #DEE2E6;display:flex;align-items:center;justify-content:center;text-align:center;font-size:12px;line-height:1.2;word-break:keep-all;\">" + str(col_n) + "</div>"
+                        "<div class=\"notranslate\" translate=\"no\" style=\"flex:1;padding:10px;background:white;font-size:13.5px;line-height:1.4;color:#212529;font-weight:500;word-break:break-all;\">" + val + "</div>"
+                        "</div>", unsafe_allow_html=True)
+        render_admin_login()
 
     # ── 탭2 ──────────────────────────────────────────────────────
     with tab2:
