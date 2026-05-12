@@ -119,7 +119,7 @@ def run():
 .filter-wrap {
     background:#fff; border:1.5px solid #e8eaed; border-radius:12px;
     padding:14px 18px 12px 18px; margin-bottom:14px;
-    box-shadow:0 1px 4px rgba(0,0,0,0);
+    box-shadow:0 1px 4px rgba(0,0,0,0.05);
 }
 .filter-label { font-size:12px; font-weight:700; color:#374151; margin-bottom:8px; }
 /* 좌우 여백 */
