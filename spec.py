@@ -250,6 +250,18 @@ def show_home():
     <div class="hj-card-title">품질통합관리</div>
     <div class="hj-card-desc">고객 사양서 · 품질 보증 기준<br>부적합 관리 대장</div>
   </div>
+  <div class="hj-card">
+    <div class="hj-card-badge">QUALITY</div>
+    <div class="hj-card-icon">📋</div>
+    <div class="hj-card-title">품질통합관리</div>
+    <div class="hj-card-desc">고객 사양서 · 품질 보증 기준<br>부적합 관리 대장</div>
+  </div>
+  <div class="hj-card">
+    <div class="hj-card-badge">QUALITY</div>
+    <div class="hj-card-icon">📋</div>
+    <div class="hj-card-title">품질통합관리</div>
+    <div class="hj-card-desc">고객 사양서 · 품질 보증 기준<br>부적합 관리 대장</div>        
+  </div>
 </div>
 """, unsafe_allow_html=True)
 
@@ -264,7 +276,16 @@ def show_home():
                      use_container_width=True, type="primary"):
             st.session_state.page = "cutting"
             st.rerun()
-
+    with col3:
+        if st.button("📋 품질통합관리 들어가기", key="btn_-",
+                     use_container_width=True, type="primary"):
+            st.session_state.page = "-"
+            st.rerun()
+    with col4:
+        if st.button("📋 품질통합관리 들어가기", key="btn_-",
+                     use_container_width=True, type="primary"):
+            st.session_state.page = "-"
+            st.rerun()            
 
 def _render_home_btn():
     st.markdown(f"""
