@@ -175,7 +175,7 @@ st.markdown("""
     .hj-ttl, .hj-ttl-dis   { font-size: .9rem; }
     .hj-icon, .hj-icon-dis  { font-size: 1.4rem; }
     [data-testid="stHorizontalBlock"] div[data-testid="stButton"] > button { height: 42px !important; font-size: 8px !important; }
-    .hj-btn-dis { height: 42px; font-size: 12px; }
+    .hj-btn-dis { height: 42px; font-size: 8px; }
 }
 @media (max-width: 400px) {
     .hj-outer          { padding: 12px 10px 0 10px; }
@@ -193,8 +193,8 @@ st.markdown("""
     .hj-ttl, .hj-ttl-dis    { font-size: .82rem; }
     .hj-icon, .hj-icon-dis   { font-size: 1.2rem; margin: 2px 0; }
     .hj-badge, .hj-badge-dis, .hj-soon { font-size: 9px; padding: 2px 7px; }
-    [data-testid="stHorizontalBlock"] div[data-testid="stButton"] > button { height: 40px !important; font-size: 11px !important; }
-    .hj-btn-dis { height: 40px; font-size: 11px; }
+    [data-testid="stHorizontalBlock"] div[data-testid="stButton"] > button { height: 40px !important; font-size: 8px !important; }
+    .hj-btn-dis { height: 40px; font-size: 8px; }
 }
 </style>
 """, unsafe_allow_html=True)
