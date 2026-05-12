@@ -256,7 +256,7 @@ def show_home():
   <div class="hj-desc">재단일별 코일 실두께 데이터<br>조회 및 현황 파악</div>
 </div>
 """, unsafe_allow_html=True)
-        if st.button("📐 코일품질데이터 들어가기", key="btn_coil", use_container_width=True):
+        if st.button("📐 들어가기", key="btn_coil", use_container_width=True):
             st.session_state.page = "coil"
             st.rerun()
 
@@ -269,7 +269,7 @@ def show_home():
   <div class="hj-desc">고객 사양서 · 품질 보증 기준<br>부적합 관리 대장</div>
 </div>
 """, unsafe_allow_html=True)
-        if st.button("📋 품질통합관리 들어가기", key="btn_cutting", use_container_width=True):
+        if st.button("📋 들어가기", key="btn_cutting", use_container_width=True):
             st.session_state.page = "cutting"
             st.rerun()
 
