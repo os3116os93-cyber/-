@@ -122,21 +122,8 @@ def run():
     box-shadow:0 1px 4px rgba(0,0,0,0.05);
 }
 .filter-label { font-size:12px; font-weight:700; color:#374151; margin-bottom:8px; }
-
-/* 조회 페이지 가로폭 정돈 */
-[data-testid="stAppViewContainer"] .main .block-container {
-    max-width: 1200px !important;
-    padding-left: 5% !important;
-    padding-right: 5% !important;
-    margin: 0 auto !important;
-}
-
-@media (max-width: 720px) {
-    [data-testid="stAppViewContainer"] .main .block-container {
-        padding-left: 15px !important;
-        padding-right: 15px !important;
-    }
-}
+/* 좌우 여백 */
+.block-container { padding-left:2rem !important; padding-right:2rem !important; }
 </style>
 """, unsafe_allow_html=True)
 
