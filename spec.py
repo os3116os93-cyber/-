@@ -40,7 +40,7 @@ st.markdown("""
 .stApp          { overflow-x: hidden; }
 [data-testid="stAppViewContainer"]         { padding-top: 0 !important; margin-top: 0 !important; }
 [data-testid="stAppViewContainer"] > .main { padding-top: 0 !important; background: #f0f2f6; }
-.block-container                           { padding: 0 !important; max-width: 100% !important; }
+.block-container                           { padding: 0 !important; }
 [data-testid="stVerticalBlock"] > div:first-child > div:first-child {
     margin-top: 0 !important; padding-top: 0 !important;
 }
