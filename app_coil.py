@@ -1,5 +1,5 @@
 """
-app_coil.py — 중간검사성적서 (코일 실두께 데이터 뷰어)
+app_coil.py — 코일품질데이터 (코일 실두께 데이터 뷰어)
 구글 시트 통합뷰에서 직접 읽어 표시
 """
 import streamlit as st
@@ -157,8 +157,8 @@ def run():
 </style>
 """, unsafe_allow_html=True)
 
-    st.markdown('<div class="coil-title">📐 중간검사성적서</div>', unsafe_allow_html=True)
-    st.markdown('<div class="coil-sub">코일 실두께 측정 데이터 조회</div>', unsafe_allow_html=True)
+    st.markdown('<div class="coil-title">📐 코일품질데이터</div>', unsafe_allow_html=True)
+    st.markdown('<div class="coil-sub">코일 실두께 데이터 조회</div>', unsafe_allow_html=True)
 
     if st.button("🔄 데이터 새로고침", key="coil_refresh"):
         load_data.clear()
@@ -355,6 +355,6 @@ def run():
     csv = display_df.to_csv(index=False, encoding="utf-8-sig")
     st.download_button(
         "⬇️ CSV 다운로드", data=csv,
-        file_name=f"중간검사성적서_{date_from}_{date_to}.csv",
+        file_name=f"코일품질데이터_{date_from}_{date_to}.csv",
         mime="text/csv"
     )
