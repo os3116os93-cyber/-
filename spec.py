@@ -239,7 +239,7 @@ def show_home():
   <span class="hj-badge">INSPECTION</span>
   <div class="hj-icon">📐</div>
   <div class="hj-ttl">코일품질데이터</div>
-  <div class="hj-desc">재단일별 코일 실두께 측정 데이터<br>조회 및 현황 파악</div>
+  <div class="hj-desc">재단일별 코일 실두께 데이터<br>조회 및 현황 파악</div>
 </div>
 """, unsafe_allow_html=True)
         if st.button("📐 들어가기", key="btn_coil", use_container_width=True):
@@ -284,7 +284,7 @@ def show_home():
   <div class="hj-ttl-dis">품질클레임조회</div>
   <div class="hj-desc-dis">서비스 준비 중입니다</div>
 </div>
-<div class="hj-btn-dis">📊&nbsp;준비 중</div>
+<div class="hj-btn-dis">🔧&nbsp;준비 중</div>
 """, unsafe_allow_html=True)
 
 
