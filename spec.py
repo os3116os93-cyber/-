@@ -53,37 +53,8 @@ st.markdown("""
 
 /* ════════════════════════════════════════
    카드 + 버튼 레이아웃
-   핵심: st.columns 각 열 안에서 카드(HTML) + 버튼(st.button)이 쌓임
-   CSS로 버튼을 카드에 완전히 밀착
+   .hj-home 클래스로 스코프 제한 → app_coil 등 서브페이지에 영향 없음
    ════════════════════════════════════════ */
-
-/* 바깥 패딩 영역 */
-.hj-outer {
-    background: #f0f2f6;
-    padding: 20px 28px 0 28px;
-    box-sizing: border-box;
-}
-.hj-outer-bottom {
-    background: #f0f2f6;
-    padding: 0 28px 28px 28px;
-    box-sizing: border-box;
-}
-
-/* st.columns 가로 행 */
-[data-testid="stHorizontalBlock"] {
-    gap: 16px !important;
-    padding: 0 28px 28px 28px !important;
-    background: #f0f2f6 !important;
-    margin-top: 0 !important;
-    align-items: stretch !important;
-}
-[data-testid="stHorizontalBlock"] > div {
-    padding: 0 !important;
-    margin: 0 !important;
-    min-width: 0 !important;
-    display: flex !important;
-    flex-direction: column !important;
-}
 
 /* 카드 본문 */
 .hj-card {
@@ -124,77 +95,89 @@ st.markdown("""
 .hj-desc      { font-size: .76rem; color: #6b7280;  line-height: 1.6; }
 .hj-desc-dis  { font-size: .76rem; color: #b0b7c0;  line-height: 1.6; }
 
-/* st.button → 카드에 딱 붙는 활성 버튼 */
-[data-testid="stHorizontalBlock"] div[data-testid="stButton"] {
-    margin: 0 !important;
-    padding: 0 !important;
-}
-[data-testid="stHorizontalBlock"] div[data-testid="stButton"] > button {
-    background: linear-gradient(135deg, #FF8C00 0%, #E65100 100%) !important;
-    color: #fff !important;
-    border: none !important;
-    border-radius: 0 0 14px 14px !important;
-    font-weight: 700 !important;
-    font-size: 14px !important;
-    height: 46px !important;
-    width: 100% !important;
-    margin: 0 !important;
-    padding: 0 !important;
-    box-shadow: 0 3px 10px rgba(255,140,0,.22) !important;
-    transition: opacity .15s !important;
-}
-[data-testid="stHorizontalBlock"] div[data-testid="stButton"] > button:hover { opacity: .85 !important; }
-[data-testid="stHorizontalBlock"] div[data-testid="stButton"] > button p { margin: 0 !important; padding: 0 !important; }
-
 /* 비활성 버튼 div */
 .hj-btn-dis {
     display: flex; align-items: center; justify-content: center; gap: 6px;
     width: 100%; height: 46px;
     background: #e9ecef; color: #adb5bd;
-    font-size: 14px; font-weight: 700;
+    font-size: 1rem; font-weight: 700;
     border: none; border-radius: 0 0 14px 14px;
     cursor: not-allowed; pointer-events: none;
     box-sizing: border-box; margin: 0;
     opacity: 0.72;
 }
 
+/* ══ 홈 전용: :has(.hj-home-marker) 로 스코프 제한
+      → 홈 페이지에서만 stHorizontalBlock 스타일 적용
+      → app_coil 등 서브페이지 필터에 영향 없음 ══ */
+.stApp:has(.hj-home-marker) [data-testid="stHorizontalBlock"] {
+    gap: 16px !important;
+    padding: 0 28px 28px 28px !important;
+    background: #f0f2f6 !important;
+    margin-top: 0 !important;
+    align-items: stretch !important;
+}
+.stApp:has(.hj-home-marker) [data-testid="stHorizontalBlock"] > div {
+    padding: 0 !important;
+    margin: 0 !important;
+    min-width: 0 !important;
+    display: flex !important;
+    flex-direction: column !important;
+}
+.stApp:has(.hj-home-marker) [data-testid="stHorizontalBlock"] div[data-testid="stButton"] {
+    margin: 0 !important;
+    padding: 0 !important;
+}
+.stApp:has(.hj-home-marker) [data-testid="stHorizontalBlock"] div[data-testid="stButton"] > button {
+    background: linear-gradient(135deg, #FF8C00 0%, #E65100 100%) !important;
+    color: #fff !important;
+    border: none !important;
+    border-radius: 0 0 14px 14px !important;
+    font-weight: 700 !important;
+    font-size: 1rem !important;
+    height: 48px !important;
+    width: 100% !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    box-shadow: 0 3px 10px rgba(255,140,0,.22) !important;
+    transition: opacity .15s !important;
+}
+.stApp:has(.hj-home-marker) [data-testid="stHorizontalBlock"] div[data-testid="stButton"] > button:hover { opacity: .85 !important; }
+.stApp:has(.hj-home-marker) [data-testid="stHorizontalBlock"] div[data-testid="stButton"] > button p { margin: 0 !important; padding: 0 !important; }
+
 /* ══ 모바일 ══ */
 @media (max-width: 720px) {
-    .hj-outer          { padding: 16px 14px 0 14px; }
-    .hj-outer-bottom   { padding: 0 14px 22px 14px; }
-    [data-testid="stHorizontalBlock"] {
+    .stApp:has(.hj-home-marker) [data-testid="stHorizontalBlock"] {
         flex-wrap: wrap !important;
         gap: 12px !important;
         padding: 0 14px 22px 14px !important;
     }
-    [data-testid="stHorizontalBlock"] > div {
+    .stApp:has(.hj-home-marker) [data-testid="stHorizontalBlock"] > div {
         width: calc(50% - 6px) !important;
         flex: 0 0 calc(50% - 6px) !important;
     }
     .hj-card, .hj-card-dis { padding: 14px 13px 12px 13px; }
     .hj-ttl, .hj-ttl-dis   { font-size: .9rem; }
     .hj-icon, .hj-icon-dis  { font-size: 1.4rem; }
-    [data-testid="stHorizontalBlock"] div[data-testid="stButton"] > button { height: 42px !important; font-size: 12px !important; }
-    .hj-btn-dis { height: 42px; font-size: 12px; }
+    .stApp:has(.hj-home-marker) [data-testid="stHorizontalBlock"] div[data-testid="stButton"] > button { height: 46px !important; font-size: .9rem !important; }
+    .hj-btn-dis { height: 46px; font-size: .9rem; }
 }
 @media (max-width: 400px) {
-    .hj-outer          { padding: 12px 10px 0 10px; }
-    .hj-outer-bottom   { padding: 0 10px 18px 10px; }
-    [data-testid="stHorizontalBlock"] {
+    .stApp:has(.hj-home-marker) [data-testid="stHorizontalBlock"] {
         gap: 10px !important;
         padding: 0 10px 18px 10px !important;
     }
-    [data-testid="stHorizontalBlock"] > div {
+    .stApp:has(.hj-home-marker) [data-testid="stHorizontalBlock"] > div {
         width: calc(50% - 5px) !important;
         flex: 0 0 calc(50% - 5px) !important;
     }
     .hj-card, .hj-card-dis { padding: 12px 10px 10px 10px; gap: 3px; }
     .hj-desc, .hj-desc-dis  { display: none; }
     .hj-ttl, .hj-ttl-dis    { font-size: .82rem; }
-    .hj-icon, .hj-icon-dis   { font-size: 1.0rem; margin: 2px 0; }
-    .hj-badge, .hj-badge-dis, .hj-soon { font-size: 12px; padding: 2px 7px; }
-    [data-testid="stHorizontalBlock"] div[data-testid="stButton"] > button { height: 40px !important; font-size: 12px !important; }
-    .hj-btn-dis { height: 40px; font-size: 12px; }
+    .hj-icon, .hj-icon-dis   { font-size: 1.2rem; margin: 2px 0; }
+    .hj-badge, .hj-badge-dis, .hj-soon { font-size: 9px; padding: 2px 7px; }
+    .stApp:has(.hj-home-marker) [data-testid="stHorizontalBlock"] div[data-testid="stButton"] > button { height: 44px !important; font-size: .82rem !important; }
+    .hj-btn-dis { height: 44px; font-size: .82rem; }
 }
 </style>
 """, unsafe_allow_html=True)
@@ -206,6 +189,9 @@ st.markdown("""
 def show_home():
     st.markdown("<style>[data-testid='stSidebar']{display:none!important;}</style>",
                 unsafe_allow_html=True)
+
+    # 홈 페이지 마커: .hj-home CSS 스코프용
+    st.markdown('<div class="hj-home-marker"></div>', unsafe_allow_html=True)
 
     # ── 1) 배너 HTML (f-string — BG_B64, logo_tag 변수 사용) ──
     # CSS는 위 전역 블록에 있으므로 여기선 HTML만
@@ -252,11 +238,11 @@ def show_home():
 <div class="hj-card">
   <span class="hj-badge">INSPECTION</span>
   <div class="hj-icon">📐</div>
-  <div class="hj-ttl">코일품질데이터</div>
-  <div class="hj-desc">재단일별 코일 실두께 데이터<br>조회 및 현황 파악</div>
+  <div class="hj-ttl">중간검사성적서</div>
+  <div class="hj-desc">재단일별 코일 실두께 측정 데이터<br>조회 및 현황 파악</div>
 </div>
 """, unsafe_allow_html=True)
-        if st.button("📐 들어가기", key="btn_coil", use_container_width=True):
+        if st.button("📐 중간검사성적서 들어가기", key="btn_coil", use_container_width=True):
             st.session_state.page = "coil"
             st.rerun()
 
@@ -269,7 +255,7 @@ def show_home():
   <div class="hj-desc">고객 사양서 · 품질 보증 기준<br>부적합 관리 대장</div>
 </div>
 """, unsafe_allow_html=True)
-        if st.button("📋 들어가기", key="btn_cutting", use_container_width=True):
+        if st.button("📋 품질통합관리 들어가기", key="btn_cutting", use_container_width=True):
             st.session_state.page = "cutting"
             st.rerun()
 
@@ -281,7 +267,7 @@ def show_home():
     <span class="hj-soon">COMING SOON</span>
   </div>
   <div class="hj-icon-dis">🔧</div>
-  <div class="hj-ttl-dis">조관품질데이터</div>
+  <div class="hj-ttl-dis">준비 중</div>
   <div class="hj-desc-dis">서비스 준비 중입니다</div>
 </div>
 <div class="hj-btn-dis">🔧&nbsp;준비 중</div>
@@ -294,11 +280,11 @@ def show_home():
     <span class="hj-badge-dis">SYSTEM</span>
     <span class="hj-soon">COMING SOON</span>
   </div>
-  <div class="hj-icon-dis">🔧</div>
-  <div class="hj-ttl-dis">품질클레임조회</div>
+  <div class="hj-icon-dis">📊</div>
+  <div class="hj-ttl-dis">준비 중</div>
   <div class="hj-desc-dis">서비스 준비 중입니다</div>
 </div>
-<div class="hj-btn-dis">🔧&nbsp;준비 중</div>
+<div class="hj-btn-dis">📊&nbsp;준비 중</div>
 """, unsafe_allow_html=True)
 
 
