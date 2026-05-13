@@ -6,7 +6,7 @@ st.set_page_config(
     page_title="한진철관 품질기술팀",
     page_icon="🏭",
     layout="wide",
-    initial_sidebar_state="collapsed"
+    initial_sidebar_state="auto"
 )
 
 try:
