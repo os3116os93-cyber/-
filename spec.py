@@ -31,7 +31,6 @@ if "page" not in st.session_state:
     st.session_state.page = "home"
 
 # ── 전역 CSS (f-string 없이 — 중괄호 충돌 없음) ──
-# ── 공통 CSS (폰트·헤더 숨김만 — 사이드바/레이아웃 영향 없는 것만) ──
 st.markdown("""
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;600;700;800;900&display=swap');
@@ -39,7 +38,12 @@ st.markdown("""
 .stApp > header { display: none !important; }
 #stDecoration   { display: none !important; }
 .stApp          { overflow-x: hidden; }
-[data-testid="stAppViewContainer"] { padding-top: 0 !important; margin-top: 0 !important; }
+[data-testid="stAppViewContainer"]         { padding-top: 0 !important; margin-top: 0 !important; }
+[data-testid="stAppViewContainer"] > .main { padding-top: 0 !important; background: #f0f2f6; }
+.block-container                           { padding: 0 !important; max-width: 100% !important; }
+[data-testid="stVerticalBlock"] > div:first-child > div:first-child {
+    margin-top: 0 !important; padding-top: 0 !important;
+}
 
 /* ── 홈 바 ── */
 .home-bar {
@@ -183,18 +187,10 @@ st.markdown("""
 #  홈 화면
 # ═══════════════════════════════════════
 def show_home():
-    # 홈 전용 CSS: 사이드바 숨김 + 레이아웃
-    st.markdown("""
-<style>
-[data-testid="stSidebar"]               { display: none !important; }
-[data-testid="stSidebarCollapsedControl"]{ display: none !important; }
-[data-testid="stAppViewContainer"] > .main { padding-top: 0 !important; background: #f0f2f6; }
-.block-container { padding: 0 !important; max-width: 100% !important; }
-[data-testid="stVerticalBlock"] > div:first-child > div:first-child { margin-top: 0 !important; padding-top: 0 !important; }
-</style>
-""", unsafe_allow_html=True)
+    st.markdown("<style>[data-testid='stSidebar']{display:none!important;}</style>",
+                unsafe_allow_html=True)
 
-    # 홈 페이지 마커
+    # 홈 페이지 마커: .hj-home CSS 스코프용
     st.markdown('<div class="hj-home-marker"></div>', unsafe_allow_html=True)
 
     # ── 1) 배너 HTML (f-string — BG_B64, logo_tag 변수 사용) ──
@@ -242,11 +238,11 @@ def show_home():
 <div class="hj-card">
   <span class="hj-badge">INSPECTION</span>
   <div class="hj-icon">📐</div>
-  <div class="hj-ttl">중간검사성적서</div>
-  <div class="hj-desc">재단일별 코일 실두께 측정 데이터<br>조회 및 현황 파악</div>
+  <div class="hj-ttl">코일품질데이터</div>
+  <div class="hj-desc">재단일별 코일 실두께 데이터<br>조회 및 현황 파악</div>
 </div>
 """, unsafe_allow_html=True)
-        if st.button("📐 중간검사성적서 들어가기", key="btn_coil", use_container_width=True):
+        if st.button("📐 들어가기", key="btn_coil", use_container_width=True):
             st.session_state.page = "coil"
             st.rerun()
 
@@ -259,7 +255,7 @@ def show_home():
   <div class="hj-desc">고객 사양서 · 품질 보증 기준<br>부적합 관리 대장</div>
 </div>
 """, unsafe_allow_html=True)
-        if st.button("📋 품질통합관리 들어가기", key="btn_cutting", use_container_width=True):
+        if st.button("📋 들어가기", key="btn_cutting", use_container_width=True):
             st.session_state.page = "cutting"
             st.rerun()
 
@@ -271,7 +267,7 @@ def show_home():
     <span class="hj-soon">COMING SOON</span>
   </div>
   <div class="hj-icon-dis">🔧</div>
-  <div class="hj-ttl-dis">준비 중</div>
+  <div class="hj-ttl-dis">조관품질데이터</div>
   <div class="hj-desc-dis">서비스 준비 중입니다</div>
 </div>
 <div class="hj-btn-dis">🔧&nbsp;준비 중</div>
@@ -284,11 +280,11 @@ def show_home():
     <span class="hj-badge-dis">SYSTEM</span>
     <span class="hj-soon">COMING SOON</span>
   </div>
-  <div class="hj-icon-dis">📊</div>
-  <div class="hj-ttl-dis">준비 중</div>
+  <div class="hj-icon-dis">🔧</div>
+  <div class="hj-ttl-dis">품질클레임조회</div>
   <div class="hj-desc-dis">서비스 준비 중입니다</div>
 </div>
-<div class="hj-btn-dis">📊&nbsp;준비 중</div>
+<div class="hj-btn-dis">🔧&nbsp;준비 중</div>
 """, unsafe_allow_html=True)
 
 
@@ -296,15 +292,6 @@ def show_home():
 #  서브페이지 헤더
 # ═══════════════════════════════════════
 def _render_home_btn():
-    # 서브페이지: 홈에서 주입된 CSS를 덮어써서 사이드바·레이아웃 완전 복원
-    st.markdown("""
-<style>
-[data-testid="stSidebar"]                { display: flex !important; visibility: visible !important; opacity: 1 !important; width: auto !important; }
-[data-testid="stSidebarCollapsedControl"]{ display: flex !important; visibility: visible !important; opacity: 1 !important; }
-[data-testid="stAppViewContainer"] > .main { padding-top: 0 !important; background: white; }
-.block-container { padding-left: 2.5rem !important; padding-right: 2.5rem !important; padding-top: 1.2rem !important; max-width: 1400px !important; margin: 0 auto !important; }
-</style>
-""", unsafe_allow_html=True)
     st.markdown(f"""
 <div class="home-bar">
   {logo_tag}
