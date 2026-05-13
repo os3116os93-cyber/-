@@ -239,15 +239,22 @@ section[data-testid="stSidebar"] {
     display: flex !important;
     visibility: visible !important;
     opacity: 1 !important;
+    width: auto !important;
 }
-/* 사이드바 접기/펼치기 버튼 정상 표시 */
+/* 사이드바 접기/펼치기 버튼 및 아이콘 정상 표시 */
 [data-testid="stSidebarCollapsedControl"] {
     display: flex !important;
+    visibility: visible !important;
+    opacity: 1 !important;
+}
+[data-testid="stSidebarCollapsedControl"] svg,
+button[data-testid="baseButton-headerNoPadding"] svg {
+    display: inline !important;
     visibility: visible !important;
 }
 section[data-testid="stSidebarContent"] { padding-top: 1rem; }
 
-/* 본문 와이드뷰 */
+/* 본문 와이드뷰: 사이드바 제외 메인 영역을 넓게 */
 .block-container {
     padding-left: 2.5rem !important;
     padding-right: 2.5rem !important;
