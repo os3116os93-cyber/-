@@ -183,11 +183,22 @@ st.markdown("""
 #  홈 화면
 # ═══════════════════════════════════════
 def show_home():
-    # 홈 전용 CSS: 사이드바 숨김 + 레이아웃
+    # 홈 전용 CSS: display:none 대신 width/opacity로 숨김 → 서브페이지 복원 가능
     st.markdown("""
 <style>
-[data-testid="stSidebar"]               { display: none !important; }
-[data-testid="stSidebarCollapsedControl"]{ display: none !important; }
+[data-testid="stSidebar"] {
+    width: 0 !important;
+    min-width: 0 !important;
+    overflow: hidden !important;
+    visibility: hidden !important;
+    padding: 0 !important;
+}
+[data-testid="stSidebarCollapsedControl"] {
+    width: 0 !important;
+    min-width: 0 !important;
+    overflow: hidden !important;
+    visibility: hidden !important;
+}
 [data-testid="stAppViewContainer"] > .main { padding-top: 0 !important; background: #f0f2f6; }
 .block-container { padding: 0 !important; max-width: 100% !important; }
 [data-testid="stVerticalBlock"] > div:first-child > div:first-child { margin-top: 0 !important; padding-top: 0 !important; }
@@ -299,12 +310,23 @@ def _render_home_btn():
     # 서브페이지: 홈에서 주입된 CSS를 덮어써서 사이드바·레이아웃 완전 복원
     st.markdown("""
 <style>
-[data-testid="stSidebar"]                { display: flex !important; visibility: visible !important; opacity: 1 !important; width: auto !important; }
-[data-testid="stSidebarCollapsedControl"]{ display: flex !important; visibility: visible !important; opacity: 1 !important; }
+[data-testid="stSidebar"] {
+    width: auto !important;
+    min-width: 0 !important;
+    overflow: visible !important;
+    visibility: visible !important;
+}
+[data-testid="stSidebarCollapsedControl"] {
+    width: auto !important;
+    min-width: 0 !important;
+    overflow: visible !important;
+    visibility: visible !important;
+}
 [data-testid="stSidebarCollapsedControl"] svg,
-button[data-testid="baseButton-headerNoPadding"] svg { display: inline !important; visibility: visible !important; }
-[data-testid="stAppViewContainer"] > .main { padding-top: 0 !important; background: white; }
-.block-container { padding-left: 2.5rem !important; padding-right: 2.5rem !important; padding-top: 1.2rem !important; max-width: 1400px !important; margin: 0 auto !important; }
+button[data-testid="baseButton-headerNoPadding"] svg {
+    display: inline !important;
+    visibility: visible !important;
+}
 </style>
 """, unsafe_allow_html=True)
     st.markdown(f"""
