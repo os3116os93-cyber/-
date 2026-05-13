@@ -193,8 +193,11 @@ st.markdown("""
 #  홈 화면
 # ═══════════════════════════════════════
 def show_home():
-    st.markdown("<style>[data-testid='stSidebar']{display:none!important;}</style>",
-                unsafe_allow_html=True)
+    # 홈에서만 사이드바 숨김 — :has()로 스코프 제한하여 서브페이지 누적 방지
+    st.markdown("""<style>
+.stApp:has(.hj-home-marker) [data-testid="stSidebar"] { display: none !important; }
+.stApp:has(.hj-home-marker) [data-testid="stSidebarCollapsedControl"] { display: none !important; }
+</style>""", unsafe_allow_html=True)
 
     # 홈 페이지 마커: .hj-home CSS 스코프용
     st.markdown('<div class="hj-home-marker"></div>', unsafe_allow_html=True)
@@ -298,6 +301,11 @@ def show_home():
 #  서브페이지 헤더
 # ═══════════════════════════════════════
 def _render_home_btn():
+    # 서브페이지 진입 시 사이드바 강제 복원 (홈에서 숨긴 CSS 누적 해제)
+    st.markdown("""<style>
+[data-testid="stSidebar"] { display: flex !important; visibility: visible !important; opacity: 1 !important; }
+[data-testid="stSidebarCollapsedControl"] { display: flex !important; visibility: visible !important; }
+</style>""", unsafe_allow_html=True)
     st.markdown(f"""
 <div class="home-bar">
   {logo_tag}
