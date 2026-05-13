@@ -234,21 +234,20 @@ def run(login_role=None):
     # 사이드바 복원 + 본문 여백 설정
     st.markdown("""
 <style>
-/* 사이드바 강제 복원 */
-html body section[data-testid="stSidebar"],
-html body [data-testid="stSidebar"],
+/* 사이드바 정상 표시 */
 section[data-testid="stSidebar"] {
     display: flex !important;
     visibility: visible !important;
     opacity: 1 !important;
-    width: auto !important;
 }
-/* 사이드바 접기/펼치기 화살표 아이콘 깨짐 방지 */
-[data-testid="stSidebarCollapsedControl"] { display: none !important; }
-button[data-testid="baseButton-headerNoPadding"] svg { display: none !important; }
+/* 사이드바 접기/펼치기 버튼 정상 표시 */
+[data-testid="stSidebarCollapsedControl"] {
+    display: flex !important;
+    visibility: visible !important;
+}
 section[data-testid="stSidebarContent"] { padding-top: 1rem; }
 
-/* 본문 와이드뷰: 사이드바 제외 메인 영역을 넓게 */
+/* 본문 와이드뷰 */
 .block-container {
     padding-left: 2.5rem !important;
     padding-right: 2.5rem !important;
