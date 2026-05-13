@@ -31,6 +31,7 @@ if "page" not in st.session_state:
     st.session_state.page = "home"
 
 # ── 전역 CSS (f-string 없이 — 중괄호 충돌 없음) ──
+# ── 공통 CSS (폰트·헤더 숨김만 — 사이드바/레이아웃 영향 없는 것만) ──
 st.markdown("""
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;600;700;800;900&display=swap');
@@ -38,18 +39,7 @@ st.markdown("""
 .stApp > header { display: none !important; }
 #stDecoration   { display: none !important; }
 .stApp          { overflow-x: hidden; }
-[data-testid="stAppViewContainer"]         { padding-top: 0 !important; margin-top: 0 !important; }
-[data-testid="stAppViewContainer"] > .main { padding-top: 0 !important; background: #f0f2f6; }
-
-/* block-container: 홈에서만 적용 — 서브페이지(coil/cutting) block-container 설정 보호 */
-.stApp:has(.hj-home-marker) .block-container {
-    padding: 0 !important;
-    max-width: 100% !important;
-}
-
-.stApp:has(.hj-home-marker) [data-testid="stVerticalBlock"] > div:first-child > div:first-child {
-    margin-top: 0 !important; padding-top: 0 !important;
-}
+[data-testid="stAppViewContainer"] { padding-top: 0 !important; margin-top: 0 !important; }
 
 /* ── 홈 바 ── */
 .home-bar {
@@ -193,13 +183,18 @@ st.markdown("""
 #  홈 화면
 # ═══════════════════════════════════════
 def show_home():
-    # 홈에서만 사이드바 숨김 — :has()로 스코프 제한하여 서브페이지 누적 방지
-    st.markdown("""<style>
-.stApp:has(.hj-home-marker) [data-testid="stSidebar"] { display: none !important; }
-.stApp:has(.hj-home-marker) [data-testid="stSidebarCollapsedControl"] { display: none !important; }
-</style>""", unsafe_allow_html=True)
+    # 홈 전용 CSS: 사이드바 숨김 + 레이아웃
+    st.markdown("""
+<style>
+[data-testid="stSidebar"]               { display: none !important; }
+[data-testid="stSidebarCollapsedControl"]{ display: none !important; }
+[data-testid="stAppViewContainer"] > .main { padding-top: 0 !important; background: #f0f2f6; }
+.block-container { padding: 0 !important; max-width: 100% !important; }
+[data-testid="stVerticalBlock"] > div:first-child > div:first-child { margin-top: 0 !important; padding-top: 0 !important; }
+</style>
+""", unsafe_allow_html=True)
 
-    # 홈 페이지 마커: .hj-home CSS 스코프용
+    # 홈 페이지 마커
     st.markdown('<div class="hj-home-marker"></div>', unsafe_allow_html=True)
 
     # ── 1) 배너 HTML (f-string — BG_B64, logo_tag 변수 사용) ──
@@ -301,11 +296,15 @@ def show_home():
 #  서브페이지 헤더
 # ═══════════════════════════════════════
 def _render_home_btn():
-    # 서브페이지 진입 시 사이드바 강제 복원 (홈에서 숨긴 CSS 누적 해제)
-    st.markdown("""<style>
-[data-testid="stSidebar"] { display: flex !important; visibility: visible !important; opacity: 1 !important; }
-[data-testid="stSidebarCollapsedControl"] { display: flex !important; visibility: visible !important; }
-</style>""", unsafe_allow_html=True)
+    # 서브페이지: 홈에서 주입된 CSS를 덮어써서 사이드바·레이아웃 완전 복원
+    st.markdown("""
+<style>
+[data-testid="stSidebar"]                { display: flex !important; visibility: visible !important; opacity: 1 !important; width: auto !important; }
+[data-testid="stSidebarCollapsedControl"]{ display: flex !important; visibility: visible !important; opacity: 1 !important; }
+[data-testid="stAppViewContainer"] > .main { padding-top: 0 !important; background: white; }
+.block-container { padding-left: 2.5rem !important; padding-right: 2.5rem !important; padding-top: 1.2rem !important; max-width: 1400px !important; margin: 0 auto !important; }
+</style>
+""", unsafe_allow_html=True)
     st.markdown(f"""
 <div class="home-bar">
   {logo_tag}
